@@ -1,0 +1,37 @@
+{
+  "name": "indium-secure-assessment",
+  "version": "1.0.1",
+  "author": "Indium AI",
+  "description": "Standalone Desktop Assessment App for Indium AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "cross-env NODE_ENV=production electron .",
+    "dev": "cross-env NODE_ENV=development electron . --disable-gpu-cache",
+    "build": "electron-builder"
+  },
+  "build": {
+    "appId": "com.indium.secure-assessment",
+    "productName": "Indium Secure Assessment",
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "portable"
+      ]
+    },
+    "mac": {
+      "icon": "build/icon.png"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "ps-list": "^8.1.1"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.6.4"
+  }
+}

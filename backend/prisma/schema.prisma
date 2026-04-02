@@ -1,0 +1,553 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String            @id @default(uuid())
+  email              String            @unique
+  passwordHash       String
+  role               Role
+  firstName          String
+  lastName           String
+  isActive           Boolean           @default(true)
+  mustChangePassword Boolean           @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  adminProfile       AdminProfile?
+  candidateProfile   CandidateProfile?
+  jwtBlacklist       JWTBlacklist[]
+  recruiterProfile   RecruiterProfile?
+  refreshTokens      RefreshToken[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model AdminProfile {
+  id         String     @id @default(uuid())
+  userId     String     @unique
+  department String?
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaigns  Campaign[]
+}
+
+model RecruiterProfile {
+  id          String              @id @default(uuid())
+  userId      String              @unique
+  department  String?
+  assignments CampaignRecruiter[]
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CandidateProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  phone              String?
+  resumeUrl          String?
+  resumeText         String?
+  status             CandidateStatus    @default(LOCKED)
+  campaignId         String
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  adminDecision      String?
+  enrolledAt         DateTime?
+  enrollmentPhotoUrl String?
+  faceDescriptor     Json?
+  isForwarded        Boolean            @default(false)
+  attempts           CandidateAttempt[]
+  campaign           Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailLog           EmailLog[]
+  scorecard          ScoreCard?
+  proctoringSessions Session[]
+  strikeLog          StrikeEvent[]
+  newViolations      Violation[]
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model JWTBlacklist {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  reason    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+}
+
+model Campaign {
+  id             String              @id @default(uuid())
+  name           String
+  role           String
+  department     String?
+  jobDescription String
+  jdFileUrl      String?
+  status         CampaignStatus      @default(DRAFT)
+  hiringType     HiringType          @default(LATERAL)
+  expiresAt      DateTime?
+  maxCandidates  Int?
+  adminId        String
+  pipelineConfig Json
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  admin          AdminProfile        @relation(fields: [adminId], references: [id])
+  recruiters     CampaignRecruiter[]
+  attempts       CandidateAttempt[]
+  candidates     CandidateProfile[]
+  rounds         PipelineRound[]
+  questionPools  QuestionPool[]
+
+  @@index([status])
+  @@index([adminId])
+  @@index([hiringType])
+}
+
+model CampaignRecruiter {
+  id          String           @id @default(uuid())
+  campaignId  String
+  recruiterId String
+  assignedAt  DateTime         @default(now())
+  campaign    Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recruiter   RecruiterProfile @relation(fields: [recruiterId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, recruiterId])
+}
+
+model PipelineRound {
+  id               String             @id @default(uuid())
+  campaignId       String
+  order            Int
+  roundType        RoundType
+  roundConfig      Json
+  interviewMode    InterviewMode?
+  timerMode        TimerMode          @default(SHARED)
+  timeLimitMinutes Int?
+  passMarkPercent  Float?
+  failAction       String             @default("MANUAL_REVIEW")
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  attempts         CandidateAttempt[]
+  campaign         Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  questionPool     QuestionPool?
+
+  @@unique([campaignId, order])
+  @@index([campaignId])
+}
+
+model QuestionPool {
+  id               String        @id @default(uuid())
+  campaignId       String
+  roundId          String        @unique
+  version          Int           @default(1)
+  status           PoolStatus    @default(GENERATING)
+  generatedBy      String
+  generationPrompt String?
+  generatedAt      DateTime?
+  adminApproved    Boolean       @default(false)
+  approvedAt       DateTime?
+  rejectedQIds     String[]      @default([])
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  questions        Question[]
+  campaign         Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  round            PipelineRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@index([status])
+}
+
+model Question {
+  id                  String             @id @default(uuid())
+  poolId              String
+  type                QuestionType
+  difficulty          Difficulty
+  topicTag            String?
+  order               Int?
+  marksAwarded        Float              @default(1)
+  stem                String?
+  options             Json?
+  explanation         String?
+  problemTitle        String?
+  problemStatement    String?
+  constraints         String?
+  examples            Json?
+  testCases           Json?
+  starterCode         Json?
+  solutionCode        Json?
+  prompt              String?
+  evaluationRubric    String?
+  followUpPrompts     Json?
+  isActive            Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  explanationPrompt   String?
+  explanationRubric   String?
+  liveCodingProblem   String?
+  liveCodingStarter   Json?
+  liveCodingTestCases Json?
+  codingSubmissions   CodingSubmission[]
+  interviewAnswers    InterviewAnswer[]
+  mcqAnswers          MCQAnswer[]
+  pool                QuestionPool       @relation(fields: [poolId], references: [id], onDelete: Cascade)
+
+  @@index([poolId])
+  @@index([type, difficulty])
+}
+
+model CandidateAttempt {
+  id                  String             @id @default(uuid())
+  candidateId         String
+  roundId             String
+  campaignId          String
+  status              AttemptStatus      @default(NOT_STARTED)
+  assignedQuestionIds String[]
+  startedAt           DateTime?
+  completedAt         DateTime?
+  terminatedAt        DateTime?
+  timeLimitMinutes    Int?
+  strikeCount         Int                @default(0)
+  maxStrikes          Int                @default(3)
+  rawScore            Float?
+  maxScore            Float?
+  percentScore        Float?
+  passed              Boolean?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  recording           AttemptRecording?
+  campaign            Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  candidate           CandidateProfile   @relation(fields: [candidateId], references: [id])
+  round               PipelineRound      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  codingSubmissions   CodingSubmission[]
+  interviewAnswers    InterviewAnswer[]
+  mcqAnswers          MCQAnswer[]
+  strikeEvents        StrikeEvent[]
+
+  @@index([candidateId])
+  @@index([campaignId])
+  @@index([status])
+}
+
+model MCQAnswer {
+  id               String           @id @default(uuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  isCorrect        Boolean?
+  marksAwarded     Float?
+  timeTakenSeconds Int?
+  answeredAt       DateTime         @default(now())
+  attempt          CandidateAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question         Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+}
+
+model CodingSubmission {
+  id              String           @id @default(uuid())
+  attemptId       String
+  questionId      String
+  language        String
+  sourceCode      String
+  submittedAt     DateTime         @default(now())
+  judge0Token     String?
+  stdout          String?
+  stderr          String?
+  compileOutput   String?
+  statusId        Int?
+  statusDesc      String?
+  timeTakenMs     Float?
+  memoryUsedKb    Float?
+  keystrokeMetrics Json?
+  testCaseResults Json?
+  testCasesPassed Int?
+  testCasesTotal  Int?
+  marksAwarded    Float?
+  attempt         CandidateAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question        Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+}
+
+model InterviewAnswer {
+  id                 String           @id @default(uuid())
+  attemptId          String
+  questionId         String
+  mode               InterviewMode
+  textAnswer         String?
+  audioUrl           String?
+  sttTranscript      String?
+  sttConfidence      Float?
+  aiScore            Float?
+  aiReasoning        String?
+  aiFollowUpAsked    String?
+  aiFollowUpAnswer   String?
+  timeTakenSeconds   Int?
+  answeredAt         DateTime         @default(now())
+  codeLanguage       String?
+  codeScore          Float?
+  codeSubmission     String?
+  communicationScore Float?
+  confidenceScore    Float?
+  correctnessScore   Float?
+  deliveryScore      Float?
+  durationSeconds    Float?
+  explainAudio       String?
+  explainScore       Float?
+  explainTranscript  String?
+  fillerWordCount    Int?
+  fillerWordRatio    Float?
+  silenceRatio       Float?
+  speechDuration     Float?
+  wordCount          Int?
+  wordsPerMinute     Float?
+  attempt            CandidateAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question           Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+}
+
+model StrikeEvent {
+  id             String           @id @default(uuid())
+  candidateId    String
+  attemptId      String
+  violationType  ViolationType
+  strikeNumber   Int
+  isStrike       Boolean          @default(true)
+  screenshotUrl  String?
+  mediapipeScore Float?
+  metadata       Json?
+  occurredAt     DateTime         @default(now())
+  attempt        CandidateAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  candidate      CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([attemptId])
+}
+
+model AttemptRecording {
+  id                   String           @id @default(uuid())
+  attemptId            String           @unique
+  videoUrl             String?
+  audioUrl             String?
+  sttFullTranscript    String?
+  sttFullConfidence    Float?
+  mediapipeLog         Json             @default("[]")
+  backgroundVoiceFlags Json             @default("[]")
+  durationSeconds      Int?
+  videoSizeBytes       BigInt?
+  audioSizeBytes       BigInt?
+  recordingStartedAt   DateTime?
+  recordingEndedAt     DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  attempt              CandidateAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id                String           @id @default(uuid())
+  candidateId       String
+  status            SessionStatus    @default(ACTIVE)
+  terminatedAt      DateTime?
+  terminationReason String?
+  createdAt         DateTime         @default(now())
+  candidate         CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  violations        Violation[]
+
+  @@index([candidateId])
+}
+
+model Violation {
+  id            String           @id @default(uuid())
+  type          ViolationType
+  candidateId   String
+  sessionId     String?
+  screenshotUrl String?
+  isStrike      Boolean          @default(true)
+  detectedAt    DateTime         @default(now())
+  candidate     CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  session       Session?         @relation(fields: [sessionId], references: [id])
+
+  @@index([candidateId])
+  @@index([sessionId])
+}
+
+model ScoreCard {
+  id                  String           @id @default(uuid())
+  candidateId         String           @unique
+  campaignId          String
+  roundScores         Json             @default("[]")
+  technicalFitPercent Float?
+  trustScore          Float?
+  strikeDeduction     Float?
+  completionBonus     Float?
+  consistencyScore    Float?
+  gapAnalysis         Json?
+  recruiterNotes      String?
+  recruiterRating     Int?
+  generatedAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  candidate           CandidateProfile @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+}
+
+model EmailLog {
+  id             String            @id @default(uuid())
+  candidateId    String?
+  toEmail        String
+  subject        String
+  templateName   String
+  status         EmailStatus       @default(PENDING)
+  graphMessageId String?
+  sentAt         DateTime?
+  failureReason  String?
+  createdAt      DateTime          @default(now())
+  candidate      CandidateProfile? @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@index([candidateId])
+  @@index([status])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  actorRole  Role?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  occurredAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([occurredAt])
+}
+
+enum Role {
+  ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  CLOSED
+  ARCHIVED
+}
+
+enum RoundType {
+  MCQ
+  CODING
+  INTERVIEW
+  MIXED
+}
+
+enum InterviewMode {
+  TEXT
+  AUDIO
+  LIVE_CODING
+  TEXT_LIVE_CODING
+  AUDIO_LIVE_CODING
+}
+
+enum TimerMode {
+  SHARED
+  PER_SLICE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  MCQ
+  CODING
+  INTERVIEW_PROMPT
+}
+
+enum CandidateStatus {
+  LOCKED
+  INVITED
+  ONBOARDING
+  READY
+  IN_PROGRESS
+  COMPLETED
+  TERMINATED
+  DISQUALIFIED
+  SHORTLISTED
+  REJECTED
+}
+
+enum AttemptStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  TERMINATED
+  TIMED_OUT
+}
+
+enum ViolationType {
+  PHONE_DETECTED
+  FACE_AWAY
+  MULTIPLE_FACES
+  TAB_SWITCH
+  FOCUS_LOSS
+  BACKGROUND_VOICE
+  NO_FACE
+  FACE_MISMATCH
+}
+
+enum SessionStatus {
+  ACTIVE
+  COMPLETED
+  TERMINATED
+}
+
+enum PoolStatus {
+  GENERATING
+  READY
+  REGENERATING
+  DEPRECATED
+  FAILED
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+enum HiringType {
+  CAMPUS
+  LATERAL
+}
