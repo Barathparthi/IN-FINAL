@@ -1,7 +1,0 @@
-# App Config
-# In dev: http://localhost:3000/login
-# In production: Your deployed candidate URL
-APP_URL=http://localhost:3000/login
-
-# Environmental Mode
-NODE_ENV=production
