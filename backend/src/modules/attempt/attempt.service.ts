@@ -272,6 +272,7 @@ async function runTestCasesWithRetry(submissionId: string, input: SubmitCodingIn
 }
 
 export async function runCodingTestCases(input: SubmitCodingInput) {
+  await enforceTimeLimit(input.attemptId)
   const question = await prisma.question.findUniqueOrThrow({
     where: { id: input.questionId },
     select: { testCases: true, solutionCode: true },
