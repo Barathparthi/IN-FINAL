@@ -319,7 +319,7 @@ fi
 
 BACKEND_DATABASE_URL="${databaseUrlParam.valueAsString}"
 if [ -z "$BACKEND_DATABASE_URL" ]; then
-  BACKEND_DATABASE_URL="postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/smarthire_db"
+  BACKEND_DATABASE_URL="postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/indium_db"
 fi
 
 JWT_SECRET_VALUE="${jwtSecretParam.valueAsString}"
@@ -378,7 +378,7 @@ REDIS_URL="${redisUrlParam.valueAsString}"
 EOF
 
 cat <<'EOF' > init-db.sql
-CREATE DATABASE smarthire_db;
+CREATE DATABASE indium_db;
 CREATE DATABASE judge0;
 EOF
 

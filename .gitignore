@@ -5,6 +5,9 @@
 # Ignore android folder in int300 directory
 int300/android/
 
+# Ignore desktop folder
+/desktop/
+
 # Optionally ignore other temp files (common)
 *.log
 .DS_Store
