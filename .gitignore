@@ -8,6 +8,7 @@ int300/android/
 # Optionally ignore other temp files (common)
 *.log
 .DS_Store
+/ENV
 .env
 dist/
 coverage/
