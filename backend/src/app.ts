@@ -4,6 +4,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import compression from 'compression'
+import { apiReference } from '@scalar/express-api-reference'
 import { authLimiter, apiLimiter } from './middlewares/rateLimiter.middleware'
 import { errorHandler } from './middlewares/error.middleware'
 
@@ -44,6 +45,24 @@ app.use('/uploads',   express.static(path.join(process.cwd(), 'uploads')))
 app.use('/downloads', express.static(path.join(process.cwd(), 'downloads')))
 
 app.get('/health', (_, res) => res.json({ status: 'ok', ts: new Date() }))
+
+app.get('/openapi.json', (_, res) => {
+  res.sendFile(path.join(process.cwd(), 'openapi.json'))
+})
+
+const scalarDocsCsp = [
+  "default-src 'self' https: data:",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' data: https:",
+  "font-src 'self' data: https:",
+  "connect-src 'self' https:",
+].join('; ')
+
+app.use('/docs', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', scalarDocsCsp)
+  next()
+}, apiReference({ url: '/openapi.json'}))
 
 app.use('/api/auth',       authLimiter, authRouter)
 app.use('/api',            apiLimiter)
