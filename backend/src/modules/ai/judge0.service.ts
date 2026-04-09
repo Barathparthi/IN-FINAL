@@ -74,7 +74,7 @@ async function executeJudge0(sourceCode: string, languageId: number, stdin: stri
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-Auth-Token'] = API_KEY
   const { data } = await axios.post<Judge0SubmissionResponse>(
-    `${URL}/submissions/?base64_encoded=false&wait=true`,
+    `${URL}/submissions/?base64_encoded=false&wait=false`,
     {
       source_code: sourceCode,
       language_id: languageId,
