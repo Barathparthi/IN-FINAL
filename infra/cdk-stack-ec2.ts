@@ -357,6 +357,9 @@ GROQ_API_KEY="${groqApiKeyParam.valueAsString}"
 
 JUDGE0_API_URL="${judge0ApiUrlParam.valueAsString}"
 JUDGE0_API_KEY=""
+JUDGE0_MEMORY_LIMIT_DEFAULT_KB="512000"
+JUDGE0_MEMORY_LIMIT_JS_KB="640000"
+JUDGE0_MEMORY_LIMIT_JAVA_KB="2097152"
 
 AZURE_TENANT_ID="${azureTenantIdParam.valueAsString}"
 AZURE_CLIENT_ID="${azureClientIdParam.valueAsString}"
@@ -437,6 +440,8 @@ services:
     image: judge0/judge0:1.13.1
     env_file: .env
     environment:
+      PORT: 2358
+      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: judge0
@@ -444,6 +449,8 @@ services:
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      MEMORY_LIMIT: 524288
+      MAX_MEMORY_LIMIT: 2097152
     ports:
       - "2358:2358"
     restart: always
@@ -457,6 +464,7 @@ services:
     command: ["./scripts/workers"]
     env_file: .env
     environment:
+      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: judge0
@@ -464,6 +472,8 @@ services:
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      MEMORY_LIMIT: 524288
+      MAX_MEMORY_LIMIT: 2097152
     restart: always
     privileged: true
     depends_on:
@@ -475,6 +485,8 @@ services:
       context: .
       dockerfile: backend.Dockerfile
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/indium_db
     ports:
       - "4000:4000"
     restart: always

@@ -2,6 +2,24 @@ import axios from 'axios'
 
 const URL = process.env.JUDGE0_API_URL || 'http://localhost:2358'
 const API_KEY = process.env.JUDGE0_API_KEY || ''
+const JAVA_LANGUAGE_ID = 62
+const JAVASCRIPT_LANGUAGE_ID = 63
+
+function parseMemoryLimitKb(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value || '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const DEFAULT_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_DEFAULT_KB, 512000)
+const JS_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JS_KB, 640000)
+const JAVA_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JAVA_KB, 2097152)
+
+function resolveMemoryLimitKb(languageId: number): number {
+  if (languageId === JAVASCRIPT_LANGUAGE_ID) return JS_MEMORY_LIMIT_KB
+  if (languageId === JAVA_LANGUAGE_ID) return JAVA_MEMORY_LIMIT_KB
+  return DEFAULT_MEMORY_LIMIT_KB
+}
+
 const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
   javascript: 63,
   node: 63,
@@ -73,12 +91,20 @@ function normalizeOutput(data: Judge0SubmissionResponse): string {
 async function executeJudge0(sourceCode: string, languageId: number, stdin: string) {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-Auth-Token'] = API_KEY
+  const memoryLimitKb = resolveMemoryLimitKb(languageId)
   const { data } = await axios.post<Judge0SubmissionResponse>(
-    `${URL}/submissions/?base64_encoded=false&wait=false`,
+    `${URL}/submissions/?base64_encoded=false&wait=true`,
     {
       source_code: sourceCode,
       language_id: languageId,
       stdin,
+      cpu_time_limit: 10,
+      wall_time_limit: 20,
+      memory_limit: memoryLimitKb,
+      // Judge0's default `--cg` mode fails on some EC2 cgroup layouts.
+      // For portability, force isolate to run without cgroups.
+      enable_per_process_and_thread_time_limit: true,
+      enable_per_process_and_thread_memory_limit: true,
     },
     {
       timeout: 30000,
@@ -182,7 +208,7 @@ export async function runJudge0SmokeTest(): Promise<Judge0SmokeResult> {
     },
   ]
 
-  const results = await Promise.all(programs.map(runSmokeProgram))
+  const results = await asyncPool(1, programs, runSmokeProgram)
   const passedCount = results.filter((r) => r.passed).length
 
   return {
@@ -221,8 +247,8 @@ export async function runTestCases(params: {
   sourceCode: string, language: string, testCases: any[]
 }) {
   const languageId = resolveLanguageId(params.language)
-  // ── FIX: Run test cases with concurrency = 2 instead of all at once
-  const results = await asyncPool(2, params.testCases, async (tc, i) => {
+  const poolLimit = languageId === JAVA_LANGUAGE_ID || languageId === JAVASCRIPT_LANGUAGE_ID ? 1 : 2
+  const results = await asyncPool(poolLimit, params.testCases, async (tc, i) => {
     try {
       const data = await executeJudge0(params.sourceCode, languageId, tc.input || '')
       const actual = normalizeOutput(data)
