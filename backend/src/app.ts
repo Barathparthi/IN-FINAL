@@ -16,6 +16,7 @@ import { candidateRouter }  from './modules/candidate/candidate.routes'
 import { attemptRouter }    from './modules/attempt/attempt.routes'
 import { proctoringRouter } from './modules/proctoring/proctoring.routes'
 import { scorecardRouter }  from './modules/scorecard/scorecard.routes'
+import { aiRouter }         from './modules/ai/ai.routes'
 
 import path from 'path'
 
@@ -53,6 +54,7 @@ app.use('/api/candidate',  candidateRouter)
 app.use('/api/attempt',    attemptRouter)
 app.use('/api/proctoring', proctoringRouter)
 app.use('/api/scorecard',  scorecardRouter)
+app.use('/api/ai',         aiRouter)
 
 app.use(errorHandler)
 
