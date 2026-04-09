@@ -23,7 +23,7 @@ export class Ec2SingleInstanceStack extends cdk.Stack {
     const repoUrlParam = new cdk.CfnParameter(this, 'RepoUrl', {
       type: 'String',
       description: 'Git repository URL containing backend and frontend folders',
-      default: 'https://github.com/Bandarusuryapranay/1234.git',
+      default: 'https://github.com/Barathparthi/IN-FINAL.git',
     });
 
     const repoBranchParam = new cdk.CfnParameter(this, 'RepoBranch', {
@@ -275,7 +275,7 @@ export class Ec2SingleInstanceStack extends cdk.Stack {
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get upgrade -y
-apt-get install -y docker.io docker-compose git nginx jq pwgen
+apt-get install -y docker.io docker-compose git nginx jq pwgen curl
 
 systemctl enable docker
 systemctl start docker
@@ -386,6 +386,7 @@ cat <<'EOF' > backend.Dockerfile
 FROM node:20-alpine
 
 RUN apk --no-cache add postgresql-client
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
@@ -398,7 +399,7 @@ RUN npm run build
 
 EXPOSE 4000
 # Wait for postgres, push schema, and start the compiled server.
-CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push && npm start'
+CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && node dist/src/index.js'
 EOF
 
 cat <<'EOF' > docker-compose.yml
@@ -519,7 +520,19 @@ for i in $(seq 1 60); do
 done
 
 docker-compose up -d judge0-server judge0-worker
+docker-compose rm -sf backend || true
 docker-compose up -d --build backend
+
+for i in $(seq 1 90); do
+  if curl -fsS http://127.0.0.1/health >/dev/null 2>&1; then
+    echo "Backend healthy via nginx"
+    break
+  fi
+  sleep 2
+done
+
+# Fail bootstrap if service is still unhealthy after retries.
+curl -fsS http://127.0.0.1/health >/dev/null
 `;
 
     instance.addUserData(userDataScript);
