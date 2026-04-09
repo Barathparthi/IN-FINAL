@@ -26,7 +26,8 @@ const app = express()
 app.set('trust proxy', 1)
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }))
-const corsOrigins = (process.env.CLIENT_URL || '').split(',').filter(Boolean)
+const clientUrlRaw = process.env.CLIENT_URL || process.env.FRONTEND_URL || ''
+const corsOrigins = clientUrlRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
 app.use(cors({ 
   origin: corsOrigins.length > 0 ? corsOrigins : true, 
   credentials: true 

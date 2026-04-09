@@ -4,8 +4,11 @@ import { verifyAccessToken } from '../../lib/jwt'
 import { isTokenBlacklisted } from '../../lib/jwt'
 
 export function initProctoringGateway(httpServer: HTTPServer) {
+  const clientUrlRaw = process.env.CLIENT_URL || process.env.FRONTEND_URL || ''
+  const corsOrigins = clientUrlRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
+
   const io = new Server(httpServer, {
-    cors: { origin: process.env.CLIENT_URL, credentials: true },
+    cors: { origin: corsOrigins.length > 0 ? corsOrigins : true, credentials: true },
     path: '/ws/proctoring',
   })
 

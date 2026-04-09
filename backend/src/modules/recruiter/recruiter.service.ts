@@ -7,6 +7,11 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL
+  return (process.env.CLIENT_URL || '').split(',')[0]?.trim() || 'http://localhost:3000'
+}
+
 export async function getDashboardStats(userId: string, role: string) {
   let campaignIds: string[] = []
   
@@ -152,7 +157,7 @@ export async function grantPermission(candidateId: string) {
     tempPassword,
     campaignName:  candidate.campaign.name,
     role:          candidate.campaign.role,
-    loginUrl:      `${process.env.CLIENT_URL}/login`,
+    loginUrl:      `${getFrontendBaseUrl()}/login`,
     downloadUrl:   `${process.env.BACKEND_URL}/downloads/Indium Secure Assessment 1.0.1.exe`,
   })
 
