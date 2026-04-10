@@ -58,7 +58,7 @@ export default function LateralHiringPage() {
             <h1><span style={{ color: 'var(--orange)' }}>Lateral</span> Hiring</h1>
           </div>
           <p className="section-subtitle">
-            {campaigns.length} total · {campaigns.filter((c: any) => c.status === 'ACTIVE').length} active · Coding, Interview &amp; Mixed rounds
+            {campaigns.length} total · {campaigns.filter((c: any) => c.status === 'ACTIVE').length} active · Coding, Interview
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => navigate('/admin/lateral-hiring/new')}>
@@ -88,7 +88,7 @@ export default function LateralHiringPage() {
         <div className="empty-state">
           <div className="empty-icon">💼</div>
           <div className="empty-title">{search || statusFilter !== 'All' ? 'No matching campaigns' : 'No lateral campaigns yet'}</div>
-          <div className="empty-desc">Lateral hiring is for experienced professionals — Coding, Interview and Mixed rounds</div>
+          <div className="empty-desc">Lateral hiring is for experienced professionals — Coding, Interview </div>
           {!search && statusFilter === 'All' && (
             <button className="btn btn-primary btn-sm" style={{ marginTop: '14px' }}
               onClick={() => navigate('/admin/lateral-hiring/new')}>
@@ -107,7 +107,7 @@ export default function LateralHiringPage() {
             </thead>
             <tbody>
               {filtered.map((camp: any) => {
-                const cnt  = camp._count?.candidates ?? 0
+                const cnt = camp._count?.candidates ?? 0
                 const rnds = camp.rounds?.length ?? 0
                 const date = new Date(camp.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
                 return (

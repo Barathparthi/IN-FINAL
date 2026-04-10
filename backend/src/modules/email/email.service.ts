@@ -194,6 +194,35 @@ export async function sendRecruiterCredentials(params: {
   })
 }
 
+export async function sendKycOtpEmail(params: {
+  toEmail: string
+  firstName: string
+  otpCode: string
+}) {
+  const html = `
+<!DOCTYPE html><html><body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#374151">
+  <div style="background:linear-gradient(135deg,#FB851E,#FB371E);padding:24px;border-radius:12px;margin-bottom:24px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:24px">Identity Verification</h1>
+    <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Security Verification Code</p>
+  </div>
+
+  <p>Hi ${params.firstName},</p>
+  <p>To continue with your assessment, please use the following verification code to complete your KYC process. This code will expire in 15 minutes.</p>
+
+  <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:32px;margin:24px 0;text-align:center">
+    <div style="font-size:32px;font-weight:bold;letter-spacing:8px;color:#FB851E;margin-bottom:8px">${params.otpCode}</div>
+    <p style="color:#6b7280;font-size:14px;margin:0">Verification Code</p>
+  </div>
+
+  <p style="color:#6b7280;font-size:14px">If you did not request this code, please ignore this email.</p>
+
+  <hr style="border:0;border-top:1px solid #e5e7eb;margin:32px 0">
+  <p style="color:#9ca3af;font-size:12px;text-align:center">Indium AI — Secure Assessment Environment</p>
+</body></html>`
+
+  await send(params.toEmail, `[Indium] Your Verification Code: ${params.otpCode}`, html)
+}
+
 export async function verifyConnection(): Promise<boolean> {
   try {
     await transporter.verify()

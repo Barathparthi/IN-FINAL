@@ -59,7 +59,7 @@ export default function RecruiterLayout() {
   }, [sidebarOpen])
 
   const handleLogout = async () => {
-    try { await authApi.logout() } catch {}
+    try { await authApi.logout() } catch { }
     clearAuth()
     navigate('/login')
     toast.success('Logged out successfully')
@@ -93,7 +93,7 @@ export default function RecruiterLayout() {
           </div>
           <div>
             <div className="sidebar-logo-text">{import.meta.env.VITE_APP_NAME}</div>
-            <div className="sidebar-logo-sub">Proctoring Platform</div>
+            <div className="sidebar-logo-sub">Assessment Platform</div>
           </div>
           {/* Close btn on mobile */}
           <button

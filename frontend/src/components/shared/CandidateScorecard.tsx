@@ -152,13 +152,13 @@ export default function CandidateScorecard({ scorecard, candidate, showActions, 
       )}
 
       {/* ── Candidate Recordings ────────────────────────────── */}
-      {candidate.attempts?.some((a: any) => a.recording?.videoUrl) && (
+      {candidate?.attempts?.some((a: any) => a.recording?.videoUrl) && (
         <div className="card">
           <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Play size={18} style={{ color: 'var(--orange)' }} /> Session Recordings
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {candidate.attempts.filter((a: any) => a.recording?.videoUrl).map((att: any, idx: number) => (
+            {candidate?.attempts?.filter((a: any) => a.recording?.videoUrl).map((att: any, idx: number) => (
               <RecordingReplay key={att.id} attempt={att} index={idx} strikeLog={strikeLog} />
             ))}
           </div>

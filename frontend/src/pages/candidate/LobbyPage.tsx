@@ -36,10 +36,12 @@ export default function LobbyPage() {
 
   const rounds = (profile?.rounds || []) as any[]
 
-  // First round not yet completed
-  const currentRound = rounds.find(
-    (r: any) => !r.attempt || (r.attempt.status !== 'COMPLETED' && r.attempt.status !== 'PASSED'),
-  )
+  // Dynamic round visibility
+  const firstNonPassedIndex = rounds.findIndex((r: any, i: number) => getRoundStatus(r, i) !== 'passed')
+  const visibleRounds = firstNonPassedIndex === -1 ? rounds : rounds.slice(0, firstNonPassedIndex + 1)
+  
+  const activeRound = visibleRounds[visibleRounds.length - 1]
+  const activeStatus = activeRound ? getRoundStatus(activeRound, visibleRounds.length - 1) : null
 
   const isCompleted =
     profile?.status === 'COMPLETED' ||
@@ -113,12 +115,12 @@ export default function LobbyPage() {
 
   // ── Start flow ───────────────────────────────────────────────
   const handleStartProcess = async () => {
-    if (!currentRound) return
+    if (!activeRound) return
     if (!profile?.faceDescriptor) {
       setIsScanning(true)
       startCamera()
     } else {
-      navigate(`/candidate/assessment/${currentRound.id}`)
+      navigate(`/candidate/assessment/${activeRound.id}`)
     }
   }
 
@@ -137,7 +139,7 @@ export default function LobbyPage() {
         toast.success('Identity Verified!', { id: toastId })
         stopCamera()
         setIsScanning(false)
-        navigate(`/candidate/assessment/${currentRound!.id}`)
+        navigate(`/candidate/assessment/${activeRound!.id}`)
       } else {
         toast.error('Face not detected. Ensure you are in a well-lit area.', { id: toastId })
       }
@@ -221,9 +223,23 @@ export default function LobbyPage() {
             <span style={{ color:'var(--orange)' }}>Welcome,</span>{' '}
             {user?.firstName}
           </h1>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, color:'var(--text-secondary)', fontSize:'1rem' }}>
-            {profile.campaign?.name} — {profile.campaign?.role}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:10, color:'var(--text-secondary)', fontSize:'1rem', flexWrap:'wrap' }}>
+            <span>{profile.campaign?.name}</span>
+            <span style={{ color:'var(--text-muted)' }}>•</span>
+            <span>{profile.campaign?.role}</span>
             
+            {systemChecked && (
+              <div style={{ 
+                display:'flex', alignItems:'center', gap:6, 
+                padding:'4px 10px', borderRadius:20, 
+                background:'rgba(134,254,144,0.06)', border:'1px solid rgba(134,254,144,0.3)',
+                color:'var(--green-dark)', fontSize:'0.72rem', fontWeight:800, textTransform:'uppercase'
+              }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'var(--green-dark)', boxShadow:'0 0 6px var(--green)' }} />
+                Systems Green
+              </div>
+            )}
+
             {(profile.strikeCount || 0) > 0 && (
               <div style={{ 
                 display:'flex', alignItems:'center', gap:6, 
@@ -257,14 +273,39 @@ export default function LobbyPage() {
         {!isRejected && isCompleted && (
           <div style={{
             textAlign:'center', padding:'40px',
-            background:'var(--bg-elevated)', borderRadius:12,
-            border:'1px solid var(--green-soft)',
+            background:'linear-gradient(135deg, rgba(134,254,144,0.05), rgba(134,254,144,0.1))', 
+            borderRadius:16, border:'1px solid var(--green-soft)',
+            backdropFilter: 'blur(10px)'
           }}>
-            <CheckCircle size={48} color="var(--green-dark)" style={{ marginBottom:16, display:'block', margin:'0 auto 16px' }} />
-            <h2 style={{ color:'var(--text-primary)', marginBottom:8 }}>Assessment Completed</h2>
-            <p style={{ color:'var(--text-secondary)', lineHeight:1.6 }}>
-              You have successfully completed all assessment rounds. Your recruiter will review
-              your results and be in touch soon!
+            <CheckCircle size={56} color="var(--green-dark)" style={{ marginBottom:20, display:'block', margin:'0 auto 20px' }} />
+            <h2 style={{ color:'var(--text-primary)', marginBottom:12, fontSize: '1.6rem' }}>Assessment Completed</h2>
+            <p style={{ color:'var(--text-secondary)', lineHeight:1.7 }}>
+              Congratulations! You have successfully crossed all hurdles. 
+              Our recruitment team will now conduct a final review of your scorecard and contact you via email regarding the next steps.
+            </p>
+          </div>
+        )}
+
+        {/* ── PENDING REVIEW STATUS CARD ── */}
+        {!isRejected && !isCompleted && activeStatus === 'pending_review' && (
+          <div style={{
+            textAlign:'center', padding:'32px 40px',
+            background:'linear-gradient(135deg, rgba(251,133,30,0.05), rgba(251,133,30,0.1))', 
+            borderRadius:16, border:'1px solid rgba(251,133,30,0.3)',
+            backdropFilter: 'blur(10px)',
+            animation: 'pulse 3s infinite'
+          }}>
+            <div style={{ 
+              width: 56, height: 56, borderRadius: '50%', background: 'rgba(251,133,30,0.1)', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' 
+            }}>
+              <Clock size={32} color="var(--orange)" />
+            </div>
+            <h2 style={{ color:'var(--text-primary)', marginBottom:10, fontSize: '1.4rem' }}>Results Under Review</h2>
+            <p style={{ color:'var(--text-secondary)', lineHeight:1.6, fontSize: '0.95rem' }}>
+              Great job finishing the <strong>{activeRound?.roundType}</strong> round! 
+              Our team is currently evaluating your performance. 
+              Please stay on this page or check back later — the next round will automatically unlock once approved.
             </p>
           </div>
         )}
@@ -279,40 +320,17 @@ export default function LobbyPage() {
               padding:'20px 24px', border:'1px solid var(--border)',
             }}>
               <div style={{
-                fontSize:'0.9rem', fontWeight:600, color:'var(--text-primary)',
+                fontSize:'0.72rem', fontWeight:800, color:'var(--text-muted)',
                 marginBottom:16, display:'flex', alignItems:'center', gap:8,
+                textTransform: 'uppercase', letterSpacing: '0.05em'
               }}>
-                <FileText size={16} color="var(--teal)" />
-                Assessment Pipeline
+                <FileText size={14} color="var(--teal)" />
+                Current Pipeline Status
               </div>
 
-              {/* Next round quick info */}
-              {currentRound && (
-                <div style={{
-                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                  paddingBottom:14, marginBottom:14,
-                  borderBottom:'1px solid var(--border)',
-                }}>
-                  <span style={{ color:'var(--text-muted)', fontSize:'0.85rem' }}>Next Round</span>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span className={`badge ${roundBadgeClass(currentRound.roundType)}`}>
-                      {currentRound.roundType}
-                    </span>
-                    {currentRound.interviewMode && (
-                      <span className="badge badge-muted" style={{ fontSize:'0.6rem' }}>
-                        {currentRound.interviewMode}
-                      </span>
-                    )}
-                    <span style={{ fontSize:'0.8rem', color:'var(--text-secondary)' }}>
-                      {currentRound.timeLimitMinutes} min
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* All rounds list */}
+              {/* All rounds list (Filtered) */}
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {rounds.map((round: any, i: number) => {
+                {visibleRounds.map((round: any, i: number) => {
                   const status = getRoundStatus(round, i)
                   const attempt = round.attempt
 
@@ -503,15 +521,21 @@ export default function LobbyPage() {
             </div>
 
             {/* CTA Button */}
-            <button
-              className="btn btn-primary"
-              disabled={!rulesAccepted || !currentRound || !systemChecked}
-              style={{ width:'100%', padding:'15px', fontSize:'1rem', fontWeight:700 }}
-              onClick={handleStartProcess}
-            >
-              Secure Entrance
-              <Clock size={17} style={{ marginLeft:6 }} />
-            </button>
+            {!isRejected && !isCompleted && activeStatus !== 'pending_review' && (
+              <button
+                className="btn btn-primary"
+                disabled={!rulesAccepted || !activeRound || !systemChecked}
+                style={{ 
+                  width:'100%', padding:'16px', fontSize:'1.05rem', fontWeight:800,
+                  boxShadow: '0 8px 24px rgba(251,133,30,0.2)',
+                  marginTop: 8
+                }}
+                onClick={handleStartProcess}
+              >
+                Secure Entrance
+                <ChevronRight size={18} style={{ marginLeft:6 }} />
+              </button>
+            )}
 
           </>
         )}

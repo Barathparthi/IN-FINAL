@@ -31,3 +31,16 @@ export async function saveIdentity(req: Request, res: Response, next: NextFuncti
     res.json(await CandidateService.saveIdentity(req.user!.candidateId!, descriptor, photoUrl))
   } catch (err) { next(err) }
 }
+
+export async function sendKycOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await CandidateService.sendKycOtp(req.user!.candidateId!))
+  } catch (err) { next(err) }
+}
+
+export async function verifyKycOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { otp } = req.body
+    res.json(await CandidateService.verifyKycOtp(req.user!.candidateId!, otp))
+  } catch (err) { next(err) }
+}
