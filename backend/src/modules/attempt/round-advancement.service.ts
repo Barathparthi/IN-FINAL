@@ -32,6 +32,39 @@ export async function handleRoundCompletion(params: {
   const nextRound = campaign.rounds.find(r => r.order === currentRound.order + 1)
   const isLastRound = !nextRound
 
+  // ── HOLD FOR REVIEW (Lateral Hiring or MCQ) ───────────────────
+  // Lateral hiring always requires manual review for all rounds.
+  // Standard hiring requires manual review specifically for MCQ rounds.
+  const isLateral = (campaign as any).hiringType === 'LATERAL'
+  const shouldHold = isLateral || currentRound.roundType === 'MCQ'
+
+  if (shouldHold) {
+    const attempt = await prisma.candidateAttempt.findFirst({
+      where: { candidateId, roundId, status: 'COMPLETED' },
+      orderBy: { completedAt: 'desc' },
+    })
+    
+    if (attempt) {
+      await prisma.candidateAttempt.update({
+        where: { id: attempt.id },
+        data: { passed: null }, // Null signifies "under review"
+      })
+    }
+
+    await prisma.candidateProfile.update({
+      where: { id: candidateId },
+      data:  { status: 'COMPLETED' },
+    })
+
+    logger.info(`[RoundAdvancement] Candidate ${candidateId} held for review after ${currentRound.roundType} Round ${currentRound.order} — score ${percentScore.toFixed(1)}%`)
+
+    return {
+      outcome:    'PENDING_REVIEW',
+      reason:     `You scored ${percentScore.toFixed(1)}%. Your results are pending review.`,
+      nextAction: 'pending_review',
+    }
+  }
+
   // ── FAILED ────────────────────────────────────────────────────
   if (!passed) {
     if (failAction === 'AUTO_REJECT') {

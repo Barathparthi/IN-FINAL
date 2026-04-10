@@ -1,5 +1,7 @@
 import { prisma }              from '../../lib/prisma'
 import { extractTextFromPdf }  from '../../utils/file-upload.util'
+import * as EmailService      from '../email/email.service'
+import bcrypt                from 'bcryptjs'
 
 export async function getMyProfile(candidateId: string) {
   const candidate = await prisma.candidateProfile.findUniqueOrThrow({
@@ -65,6 +67,7 @@ export async function getMyProfile(candidateId: string) {
     id:             candidate.id,
     status:         candidate.status,
     strikeCount,
+    kycVerifiedAt:  candidate.kycVerifiedAt,
     faceDescriptor: (candidate as any).faceDescriptor,
     user:           candidate.user,
     campaign: {
@@ -134,10 +137,64 @@ export async function getOnboardingStatus(candidateId: string) {
 
   return {
     passwordChanged: !profile.user.mustChangePassword,
+    kycVerified:     !!profile.kycVerifiedAt,
     resumeUploaded:  !!profile.resumeUrl,
     status:          profile.status,
     canStartTest:    profile.status === 'READY' || profile.status === 'IN_PROGRESS',
   }
+}
+
+export async function sendKycOtp(candidateId: string) {
+  const candidate = await prisma.candidateProfile.findUniqueOrThrow({
+    where: { id: candidateId },
+    include: { user: true }
+  })
+
+  const otp = Math.floor(100000 + Math.random() * 900000).toString()
+  const otpHash = await bcrypt.hash(otp, 10)
+  const otpExpiry = new Date(Date.now() + 15 * 60 * 1000) // 15 mins
+
+  await prisma.user.update({
+    where: { id: candidate.userId },
+    data: { otpHash, otpExpiry }
+  })
+
+  await EmailService.sendKycOtpEmail({
+    toEmail: candidate.user.email,
+    firstName: candidate.user.firstName,
+    otpCode: otp
+  })
+
+  return { message: 'OTP sent successfully' }
+}
+
+export async function verifyKycOtp(candidateId: string, otp: string) {
+  const candidate = await prisma.candidateProfile.findUniqueOrThrow({
+    where: { id: candidateId },
+    include: { user: true }
+  })
+
+  if (!candidate.user.otpHash || !candidate.user.otpExpiry || candidate.user.otpExpiry < new Date()) {
+    throw new Error('OTP expired or not found. Please request a new one.')
+  }
+
+  const isValid = await bcrypt.compare(otp, candidate.user.otpHash)
+  if (!isValid) {
+    throw new Error('Invalid verification code.')
+  }
+
+  await prisma.candidateProfile.update({
+    where: { id: candidateId },
+    data: { kycVerifiedAt: new Date() }
+  })
+
+  // Clear OTP
+  await prisma.user.update({
+    where: { id: candidate.userId },
+    data: { otpHash: null, otpExpiry: null }
+  })
+
+  return { message: 'Email verified successfully' }
 }
 
 export async function saveIdentity(candidateId: string, descriptor: any, photoUrl: string) {
@@ -151,7 +208,7 @@ export async function saveIdentity(candidateId: string, descriptor: any, photoUr
     include: { user: true }
   })
 
-  if (!updated.user.mustChangePassword && updated.status === 'ONBOARDING' && updated.resumeUrl) {
+  if (!updated.user.mustChangePassword && updated.status === 'ONBOARDING' && updated.resumeUrl && updated.kycVerifiedAt) {
     return prisma.candidateProfile.update({
       where: { id: candidateId },
       data:  { status: 'READY' },

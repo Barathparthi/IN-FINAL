@@ -406,32 +406,7 @@ function RoundConfig({
         </div>
       )}
 
-      {/* MIXED sub-slices */}
-      {round.roundType === 'MIXED' && (
-        <div style={{ marginTop: '14px' }}>
-          <label className="form-label" style={{ marginBottom: '10px', display: 'block' }}>Sub-slice Counts</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
-            {(['MCQ', 'CODING', 'INTERVIEW'] as const).map(type => (
-              <div key={type} className="form-group">
-                <label className="form-label">
-                  <span className={`round-badge ${type}`} style={{ marginRight: '6px' }}>{type}</span> Count
-                </label>
-                <input
-                  type="number" className="form-input" min={0}
-                  placeholder="0"
-                  onChange={e => {
-                    const slices = [...(round.slices || [])]
-                    const idx = slices.findIndex(s => s.type === type)
-                    if (idx >= 0) slices[idx] = { ...slices[idx], count: Number(e.target.value) }
-                    else slices.push({ type, count: Number(e.target.value) })
-                    set({ slices })
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
     </div>
   )
 }

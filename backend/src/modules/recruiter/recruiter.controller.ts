@@ -90,3 +90,27 @@ export async function reduceStrike(req: Request, res: Response, next: NextFuncti
     res.json(await RecruiterService.reduceStrike(req.params.attemptId))
   } catch (err) { next(err) }
 }
+
+export async function getRoundReview(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await RecruiterService.getRoundReview(req.params.roundId))
+  } catch (err) { next(err) }
+}
+
+export async function updateRoundCriteria(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await RecruiterService.updateRoundCriteria(req.params.roundId, req.body.passMarkPercent))
+  } catch (err) { next(err) }
+}
+
+export async function bulkAdvanceCandidates(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { candidateIds } = req.body
+    res.json(await RecruiterService.bulkAdvanceCandidates(
+      req.params.roundId, 
+      candidateIds, 
+      req.user!.userId, 
+      req.user!.role
+    ))
+  } catch (err) { next(err) }
+}

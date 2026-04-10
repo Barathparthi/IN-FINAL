@@ -18,7 +18,7 @@ const C_STATUS: Record<string, string> = {
   COMPLETED: 'badge-success', TERMINATED: 'badge-danger',
   SHORTLISTED: 'badge-success', REJECTED: 'badge-danger',
 }
-const ROUND_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️', MIXED: '🧩' }
+const ROUND_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️' }
 const TABS = ['Overview', 'Candidates', 'Rounds', 'Recruiters'] as const
 
 export default function CampaignDetailPage() {
@@ -28,6 +28,7 @@ export default function CampaignDetailPage() {
   const [tab, setTab] = useState<typeof TABS[number]>('Overview')
   const [showAssignModal, setShowAssignModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [bulkEvalPassMarks, setBulkEvalPassMarks] = useState<Record<string, number>>({})
 
   const { data: camp, isLoading } = useQuery({
     queryKey: ['campaign', id],
@@ -286,6 +287,60 @@ export default function CampaignDetailPage() {
                   {r.failAction && <span>⚡ {r.failAction}</span>}
                   {r.questionMode && <span>📝 {r.questionMode}</span>}
                 </div>
+
+                {r.roundType === 'MCQ' && (
+                  <div style={{ marginTop: '16px', padding: '16px', background: 'rgba(251,133,30,0.05)', borderRadius: '8px', border: '1px solid rgba(251,133,30,0.2)' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Zap size={14} color="var(--orange)" /> Admin Round Review
+                    </div>
+                    {(() => {
+                        const pendingAttempts = candidates.map((c: any) => c.attempts?.find((a: any) => a.roundId === r.id && a.status === 'COMPLETED' && a.passed === null)).filter(Boolean)
+                        const passingCount = pendingAttempts.filter((a: any) => (a.percentScore || 0) >= (bulkEvalPassMarks[r.id] ?? r.passMarkPercent ?? 60)).length
+                        const failingCount = pendingAttempts.length - passingCount
+                        
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              Candidates pending review: <strong style={{ color: 'var(--text-primary)' }}>{pendingAttempts.length}</strong>
+                            </div>
+                            {pendingAttempts.length > 0 && (
+                              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Adjust Pass Threshold %:</label>
+                                  <input 
+                                    type="number" className="form-input" min={0} max={100}
+                                    style={{ width: '60px', padding: '4px 8px', fontSize: '0.8rem', height: '28px' }} 
+                                    value={bulkEvalPassMarks[r.id] ?? r.passMarkPercent ?? 60} 
+                                    onChange={(e) => setBulkEvalPassMarks({...bulkEvalPassMarks, [r.id]: Number(e.target.value)})}
+                                  />
+                                </div>
+                                <div style={{ fontSize: '0.75rem', display: 'flex', gap: '8px' }}>
+                                  <span style={{ color: 'var(--green-dark)' }}>{passingCount} Pass</span>
+                                  <span style={{ color: 'var(--text-muted)' }}>|</span>
+                                  <span style={{ color: 'var(--red)' }}>{failingCount} Fail</span>
+                                </div>
+                                <button className="btn btn-primary btn-sm" onClick={async () => {
+                                  try {
+                                    const passMark = bulkEvalPassMarks[r.id] ?? r.passMarkPercent ?? 60
+                                    await adminApi.bulkEvaluateRound(id!, r.id, passMark)
+                                    toast.success('Bulk evaluation executed successfully!')
+                                    qc.invalidateQueries({ queryKey: ['campaign', id] })
+                                  } catch (err: any) {
+                                    toast.error(err.response?.data?.message || err.response?.data?.error || 'Failed to execute bulk evaluation')
+                                  }
+                                }}>
+                                  Execute Bulk Review
+                                </button>
+                              </div>
+                            )}
+                            {pendingAttempts.length === 0 && (
+                              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Up to date</div>
+                            )}
+                          </div>
+                        )
+                    })()}
+                  </div>
+                )}
               </div>
             )
           })}

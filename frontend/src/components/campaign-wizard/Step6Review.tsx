@@ -8,7 +8,7 @@ interface Props {
   isSubmitting: boolean
 }
 
-const TYPE_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️', MIXED: '🧩' }
+const TYPE_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️' }
 
 export default function Step6Review({ form, onSubmit, isSubmitting }: Props) {
   const SectionRow = ({ label, value }: { label: string; value: string | number | undefined | null }) => (
@@ -84,7 +84,7 @@ export default function Step6Review({ form, onSubmit, isSubmitting }: Props) {
         </div>
 
         {/* Interview */}
-        {form.rounds.some(r => r.roundType === 'INTERVIEW' || r.roundType === 'MIXED') && (
+        {form.rounds.some(r => r.roundType === 'INTERVIEW') && (
           <div className="card card-sm">
             <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--yellow-dark)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px' }}>
               Interview Settings

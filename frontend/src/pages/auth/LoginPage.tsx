@@ -90,7 +90,7 @@ export default function LoginPage() {
             {import.meta.env.VITE_APP_NAME}
           </h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
-            AI-Powered Proctoring Interview Platform
+            AI-Powered Proctoring Assessment Platform
           </p>
         </div>
 

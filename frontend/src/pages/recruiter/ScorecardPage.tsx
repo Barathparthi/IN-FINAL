@@ -106,7 +106,8 @@ export default function ScorecardPage() {
     )
   }
 
-  const { candidate, scorecard } = data
+  const candidate = data
+  const scorecard = data.scorecard
   const hasScorecard = !!scorecard
 
   const handleAction = (action: string, extra?: any) => {

@@ -60,3 +60,20 @@ export async function deleteRecruiter(req: Request, res: Response, next: NextFun
     res.json({ ok: true })
   } catch (err) { next(err) }
 }
+
+import { bulkEvaluateRound } from '../attempt/round-review.service'
+
+// POST /api/admin/campaigns/:campaignId/rounds/:roundId/bulk-evaluate
+export async function adminBulkEvaluateRound(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { campaignId, roundId } = req.params;
+    const { passMarkPercent } = req.body;
+    
+    if (typeof passMarkPercent !== 'number' || passMarkPercent < 0 || passMarkPercent > 100) {
+      return res.status(400).json({ error: 'passMarkPercent must be a number between 0 and 100' });
+    }
+
+    const result = await bulkEvaluateRound(campaignId, roundId, passMarkPercent, req.user!.userId);
+    res.json(result);
+  } catch (err) { next(err) }
+}

@@ -27,9 +27,9 @@ const navSections = [
   {
     label: 'Organization',
     items: [
-      { to: '/admin/campus-hiring',  icon: GraduationCap, label: 'Campus Hiring' },
-      { to: '/admin/lateral-hiring', icon: Briefcase,     label: 'Lateral Hiring' },
-      { to: '/admin/recruiters',     icon: Users,         label: 'Recruiters' },
+      { to: '/admin/campus-hiring', icon: GraduationCap, label: 'Campus Hiring' },
+      { to: '/admin/lateral-hiring', icon: Briefcase, label: 'Lateral Hiring' },
+      { to: '/admin/recruiters', icon: Users, label: 'Recruiters' },
     ],
   },
   {
@@ -48,21 +48,21 @@ const navSections = [
 ]
 
 const PAGE_TITLES: Record<string, string> = {
-  '/admin/dashboard':         'Dashboard',
+  '/admin/dashboard': 'Dashboard',
   '/admin/candidates-management': 'Candidate Management',
-  '/admin/live-monitor':      'Live Assessment Monitor',
-  '/admin/reports':           'Report Download',
-  '/admin/campus-hiring':     'Campus Hiring',
+  '/admin/live-monitor': 'Live Assessment Monitor',
+  '/admin/reports': 'Report Download',
+  '/admin/campus-hiring': 'Campus Hiring',
   '/admin/campus-hiring/new': 'Create Campus Campaign',
-  '/admin/lateral-hiring':    'Lateral Hiring',
-  '/admin/lateral-hiring/new':'Create Lateral Campaign',
-  '/admin/campaigns':         'Campaigns',
-  '/admin/campaigns/new':     'Create Campaign',
-  '/admin/recruiters':        'Recruiter Management',
-  '/admin/analytics':         'Analytics',
-  '/admin/settings':          'System Settings',
-  '/admin/security':          'Security',
-  '/admin/profile':           'My Profile',
+  '/admin/lateral-hiring': 'Lateral Hiring',
+  '/admin/lateral-hiring/new': 'Create Lateral Campaign',
+  '/admin/campaigns': 'Campaigns',
+  '/admin/campaigns/new': 'Create Campaign',
+  '/admin/recruiters': 'Recruiter Management',
+  '/admin/analytics': 'Analytics',
+  '/admin/settings': 'System Settings',
+  '/admin/security': 'Security',
+  '/admin/profile': 'My Profile',
 }
 
 export default function AdminLayout() {
@@ -82,7 +82,7 @@ export default function AdminLayout() {
   }, [sidebarOpen])
 
   const handleLogout = async () => {
-    try { await authApi.logout() } catch {}
+    try { await authApi.logout() } catch { }
     clearAuth()
     navigate('/login')
     toast.success('Logged out successfully')
@@ -95,7 +95,7 @@ export default function AdminLayout() {
   const pageTitle =
     PAGE_TITLES[location.pathname] ||
     (location.pathname.includes('/questions') ? 'Question Pool' :
-     location.pathname.match(/campaigns\/[^/]+$/) ? 'Campaign Detail' : 'Admin')
+      location.pathname.match(/campaigns\/[^/]+$/) ? 'Campaign Detail' : 'Admin')
 
   return (
     <div className="app-shell">
@@ -113,7 +113,7 @@ export default function AdminLayout() {
           </div>
           <div>
             <div className="sidebar-logo-text">{import.meta.env.VITE_APP_NAME}</div>
-            <div className="sidebar-logo-sub">Proctoring Platform</div>
+            <div className="sidebar-logo-sub">Assessment Platform</div>
           </div>
           {/* Close btn on mobile */}
           <button
