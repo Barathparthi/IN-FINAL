@@ -38,12 +38,6 @@ poolGenerationQueue.process('generate', async (job) => {
       }
       questions = await generateInterviewPrompts(campaign.jobDescription, campaign.role, cfg)
 
-    } else if (round.roundType === 'MIXED') {
-      for (const slice of (cfg.slices || [])) {
-        if (slice.type === 'MCQ')       questions.push(...await generateMCQs(campaign.jobDescription, campaign.role, slice))
-        if (slice.type === 'CODING')    questions.push(...await generateCodingProblems(campaign.jobDescription, campaign.role, slice))
-        if (slice.type === 'INTERVIEW') questions.push(...await generateInterviewPrompts(campaign.jobDescription, campaign.role, slice))
-      }
     }
 
     // Upsert pool record

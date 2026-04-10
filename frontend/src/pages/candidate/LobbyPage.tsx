@@ -158,6 +158,7 @@ export default function LobbyPage() {
         prev?.attempt?.status === 'COMPLETED' && prev?.attempt?.passed === true
       return prevPassed ? 'unlocked' : 'locked'
     }
+    if (attempt.status === 'COMPLETED' && attempt.passed === null)  return 'pending_review'
     if (attempt.status === 'COMPLETED' && attempt.passed === true)  return 'passed'
     if (attempt.status === 'COMPLETED' && attempt.passed === false) return 'failed'
     if (attempt.status === 'IN_PROGRESS') return 'inprogress'
@@ -169,7 +170,7 @@ export default function LobbyPage() {
       MCQ:       'badge-primary',
       CODING:    'badge-teal',
       INTERVIEW: 'badge-warning',
-      MIXED:     'badge-success',
+
     }
     return map[type] || 'badge-muted'
   }
@@ -316,10 +317,11 @@ export default function LobbyPage() {
                   const attempt = round.attempt
 
                   const borderColor =
-                    status === 'passed'     ? 'rgba(134,254,144,0.3)' :
-                    status === 'failed'     ? 'rgba(251,55,30,0.25)'  :
-                    status === 'inprogress' ? 'rgba(251,133,30,0.3)'  :
-                    status === 'unlocked'   ? 'rgba(251,133,30,0.2)'  :
+                    status === 'passed'         ? 'rgba(134,254,144,0.3)' :
+                    status === 'failed'         ? 'rgba(251,55,30,0.25)'  :
+                    status === 'pending_review' ? 'rgba(251,133,30,0.4)'  :
+                    status === 'inprogress'     ? 'rgba(251,133,30,0.3)'  :
+                    status === 'unlocked'       ? 'rgba(251,133,30,0.2)'  :
                     'var(--border)'
 
                   return (
@@ -339,15 +341,17 @@ export default function LobbyPage() {
                         width:34, height:34, borderRadius:8, flexShrink:0,
                         display:'flex', alignItems:'center', justifyContent:'center',
                         background:
-                          status === 'passed'     ? 'var(--green-soft)'  :
-                          status === 'failed'     ? 'var(--red-soft)'    :
-                          status === 'inprogress' ? 'var(--orange-soft)' :
-                          status === 'locked'     ? 'var(--bg-elevated)' :
+                          status === 'passed'         ? 'var(--green-soft)'  :
+                          status === 'failed'         ? 'var(--red-soft)'    :
+                          status === 'pending_review' ? 'var(--orange-soft)' :
+                          status === 'inprogress'     ? 'var(--orange-soft)' :
+                          status === 'locked'         ? 'var(--bg-elevated)' :
                           'var(--orange-soft)',
                       }}>
-                        {status === 'passed'     && <CheckCircle size={18} color="var(--green-dark)" />}
-                        {status === 'failed'     && <XCircle     size={18} color="var(--red)" />}
-                        {status === 'locked'     && <Lock        size={18} color="var(--text-muted)" />}
+                        {status === 'passed'         && <CheckCircle size={18} color="var(--green-dark)" />}
+                        {status === 'failed'         && <XCircle     size={18} color="var(--red)" />}
+                        {status === 'pending_review' && <Clock       size={18} color="var(--orange)" />}
+                        {status === 'locked'         && <Lock        size={18} color="var(--text-muted)" />}
                         {status === 'unlocked'   && (
                           <span style={{ fontWeight:800, fontSize:15, color:'var(--orange)' }}>{i + 1}</span>
                         )}
@@ -394,6 +398,14 @@ export default function LobbyPage() {
                               {attempt?.percentScore?.toFixed(1)}%
                             </span>
                             <span className="badge badge-danger" style={{ fontSize:'0.58rem' }}>FAILED</span>
+                          </div>
+                        )}
+                        {status === 'pending_review' && (
+                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                            <span style={{ fontWeight:800, fontSize:'1rem', color:'var(--orange)' }}>
+                              {attempt?.percentScore?.toFixed(1)}%
+                            </span>
+                            <span className="badge badge-warning" style={{ fontSize:'0.58rem' }}>UNDER REVIEW</span>
                           </div>
                         )}
                         {status === 'inprogress' && (

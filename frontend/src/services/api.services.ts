@@ -28,6 +28,8 @@ export const adminApi = {
     api.delete(`/admin/recruiters/${id}`).then((r) => r.data),
   removeRecruiterFromCampaign: (recruiterId: string, campaignId: string) =>
     api.delete(`/admin/recruiters/${recruiterId}/campaigns/${campaignId}`).then((r) => r.data),
+  bulkEvaluateRound: (campaignId: string, roundId: string, passMarkPercent: number) =>
+    api.post(`/admin/campaigns/${campaignId}/rounds/${roundId}/bulk-evaluate`, { passMarkPercent }).then(r => r.data),
 }
 
 // ── Recruiter ───────────────────────────────────────────────────

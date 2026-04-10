@@ -466,7 +466,6 @@ enum RoundType {
   MCQ
   CODING
   INTERVIEW
-  MIXED
 }
 
 enum InterviewMode {

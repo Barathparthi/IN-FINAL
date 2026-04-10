@@ -33,7 +33,7 @@ export default function Step4InterviewConfig({ form, update, hasInterviewRound }
           <div>
             <strong>No Interview rounds configured.</strong>
             <div style={{ marginTop: '2px', opacity: 0.8 }}>
-              Go back to Pipeline Builder and add an INTERVIEW or MIXED round to configure this step.
+              Go back to Pipeline Builder and add an INTERVIEW round to configure this step.
             </div>
           </div>
         </div>

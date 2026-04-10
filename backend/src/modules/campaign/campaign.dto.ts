@@ -64,21 +64,12 @@ const InterviewRoundSchema = z.object({
   resumeSplit:       z.number().min(0).max(100).default(0),
 })
 
-const MixedRoundSchema = z.object({
-  order:             z.number(),
-  roundType:         z.literal('MIXED'),
-  timeLimitMinutes:  z.number().optional(),
-  timerMode:         z.enum(['SHARED', 'PER_SLICE']).optional(),
-  passMarkPercent:   z.number().min(0).max(100).optional(),
-  failAction:        z.enum(['AUTO_REJECT', 'MANUAL_REVIEW']).default('MANUAL_REVIEW'),
-  slices:            z.array(z.any()).optional(),
-})
+
 
 const RoundConfigSchema = z.discriminatedUnion('roundType', [
   MCQRoundSchema,
   CodingRoundSchema,
   InterviewRoundSchema,
-  MixedRoundSchema,
 ])
 
 export const CreateCampaignDto = z.object({
