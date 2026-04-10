@@ -17,8 +17,12 @@ nano infra/vbox/.env.vm
 ```
 
 Minimum required in `.env.vm`:
-- `PUBLIC_BASE_URL` (example: `http://192.168.56.10`)
+- `PUBLIC_BASE_URL` (example: `http://10.10.142.96`)
 - one of `GROQ_API_KEY` or `OPENAI_API_KEY`
+
+Frontend URL notes:
+- `VITE_API_BASE_URL` defaults to `/api` (same-origin; avoids IP mismatch in browser calls)
+- `VITE_BACKEND_URL` defaults to `PUBLIC_BASE_URL`
 
 ## 3) Deploy the app stack
 

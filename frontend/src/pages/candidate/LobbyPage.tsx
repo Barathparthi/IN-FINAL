@@ -79,7 +79,9 @@ export default function LobbyPage() {
     // 1. Network check
     try {
       const start = Date.now()
-      await fetch(import.meta.env.VITE_API_BASE_URL ? import.meta.env.VITE_API_BASE_URL.replace('/api/v1', '') + '/health' : '/').catch(() => fetch('/'))
+      const apiBase = import.meta.env.VITE_API_BASE_URL || ''
+      const healthBase = apiBase.replace(/\/api(?:\/v1)?$/, '')
+      await fetch(`${healthBase || ''}/health`).catch(() => fetch('/'))
       const duration = Date.now() - start
       if (duration > 4000) throw new Error('Network latency too high (>4000ms)')
     } catch (e: any) {
