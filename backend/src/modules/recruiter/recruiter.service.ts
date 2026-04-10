@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma'
 import { sendCandidateCredentials } from '../email/email.service'
 import { generateTempPassword } from '../../utils/password.util'
 import bcrypt from 'bcryptjs'
+import { gapAnalysisQueue } from '../../jobs/queue'
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
@@ -480,6 +481,7 @@ export async function bulkAdvanceCandidates(roundId: string, candidateIds: strin
           where: { id: candidateId },
           data: { status: 'COMPLETED' }
         })
+        gapAnalysisQueue.add('analyze', { candidateId })
       } else {
         // More rounds - unlock next
         await prisma.candidateProfile.update({

@@ -13,7 +13,6 @@ export default function IdentityVerificationPage() {
   const { user } = useAuthStore()
   const [step, setStep] = useState<'otp' | 'biometric'>('otp')
   const [otp, setOtp] = useState('')
-  const [isVerifying, setIsVerifying] = useState(false)
   const [enrolled, setEnrolled] = useState(false)
 
   const { data: profile } = useQuery({

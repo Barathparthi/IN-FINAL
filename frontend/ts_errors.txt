@@ -1,0 +1,9 @@
+﻿src/components/recruiter/RoundReviewModal.tsx(4,32): error TS6133: 'ChevronRight' is declared but its value is never read.
+src/components/recruiter/RoundReviewModal.tsx(4,51): error TS6133: 'Trophy' is declared but its value is never read.
+src/components/recruiter/RoundReviewModal.tsx(43,57): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/recruiter/RoundReviewModal.tsx(47,53): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/recruiter/RoundReviewModal.tsx(80,49): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/recruiter/RoundReviewModal.tsx(84,44): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/components/recruiter/RoundReviewModal.tsx(167,65): error TS7006: Parameter 'c' implicitly has an 'any' type.
+src/pages/candidate/IdentityVerificationPage.tsx(16,10): error TS6133: 'isVerifying' is declared but its value is never read.
+src/pages/candidate/IdentityVerificationPage.tsx(16,23): error TS6133: 'setIsVerifying' is declared but its value is never read.
