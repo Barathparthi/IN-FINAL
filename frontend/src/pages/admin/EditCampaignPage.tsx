@@ -99,7 +99,7 @@ export default function EditCampaignPage() {
     setForm(prev => ({ ...prev, ...patch }))
 
   const hasInterviewRound = form.rounds.some(
-    r => r.roundType === 'INTERVIEW' || r.roundType === 'MIXED'
+    r => r.roundType === 'INTERVIEW'
   )
 
   const { mutate: submit, isPending } = useMutation({
@@ -154,9 +154,6 @@ export default function EditCampaignPage() {
               mapped.followUpEnabled   = r.followUpEnabled ?? form.followUpEnabled ?? true;
               mapped.resumeSplit       = r.resumeSplitPercent ?? 0;
               mapped.allowedLanguages  = r.allowedLanguages;
-            } else if (r.roundType === 'MIXED') {
-              mapped.timerMode         = r.timerMode || 'SHARED';
-              mapped.slices            = r.slices;
             }
             return mapped
           }),

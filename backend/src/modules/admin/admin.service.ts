@@ -3,6 +3,11 @@ import { prisma } from '../../lib/prisma'
 import { generateTempPassword } from '../../utils/password.util'
 import { sendRecruiterCredentials } from '../email/email.service'
 
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL
+  return (process.env.CLIENT_URL || '').split(',')[0]?.trim() || 'http://localhost:3000'
+}
+
 export async function createRecruiter(input: {
   email: string, firstName: string, lastName: string, department?: string, campaignIds?: string[]
 }) {
@@ -35,7 +40,7 @@ export async function createRecruiter(input: {
 
   // ── Send Email ──────────────────────────────────────────────
   try {
-    const loginUrl = `${process.env.FRONTEND_URL}/login`
+    const loginUrl = `${getFrontendBaseUrl()}/login`
     await sendRecruiterCredentials({
       toEmail: input.email,
       firstName: input.firstName,

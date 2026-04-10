@@ -14,7 +14,7 @@ import Step6Review from '../../components/campaign-wizard/Step6Review'
 export interface Round {
   id: string
   order: number
-  roundType: 'MCQ' | 'CODING' | 'INTERVIEW' | 'MIXED'
+  roundType: 'MCQ' | 'CODING' | 'INTERVIEW'
   totalQuestions?: number
   timeLimitMinutes?: number
   passMarkPercent?: number
@@ -113,7 +113,7 @@ export default function CreateCampaignPage() {
     setForm(prev => ({ ...prev, ...patch }))
 
   const hasInterviewRound = form.rounds.some(
-    r => r.roundType === 'INTERVIEW' || r.roundType === 'MIXED'
+    r => r.roundType === 'INTERVIEW'
   )
 
   const { mutate: submit, isPending } = useMutation({
@@ -168,9 +168,6 @@ export default function CreateCampaignPage() {
               mapped.followUpEnabled   = r.followUpEnabled ?? form.followUpEnabled ?? true;
               mapped.resumeSplit       = r.resumeSplitPercent ?? 0;
               mapped.allowedLanguages  = r.allowedLanguages;
-            } else if (r.roundType === 'MIXED') {
-              mapped.timerMode         = r.timerMode || 'SHARED';
-              mapped.slices            = r.slices;
             }
             return mapped
           }),

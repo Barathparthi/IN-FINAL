@@ -1,6 +1,11 @@
 import { prisma } from '../../lib/prisma'
 import { generateTempPassword } from '../../utils/password.util'
 import { sendForwardToAdmin } from '../email/email.service'
+
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL
+  return (process.env.CLIENT_URL || '').split(',')[0]?.trim() || 'http://localhost:3000'
+}
 import bcrypt from 'bcryptjs'
 
 export async function advanceCandidateToNextRound(candidateId: string, adminUserId: string) {
@@ -105,7 +110,7 @@ export async function forwardScorecardToAdmin(candidateId: string, recruiterUser
     aiSummary:     gap?.aiSummary || '',
     missingSkills: gap?.jdMissingSkills || [],
     recruiterNotes:sc.recruiterNotes || '',
-    scorecardUrl:  `${process.env.CLIENT_URL}/admin/candidates/${candidateId}`,
+    scorecardUrl:  `${getFrontendBaseUrl()}/admin/candidates/${candidateId}`,
   })
 
   await prisma.candidateProfile.update({

@@ -162,38 +162,30 @@ export default function PermissionsGatePage() {
                       (processState === 'success' || !isElectron) &&
                       (vmState === 'success' || !isElectron);
 
-  if (!isElectron) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'var(--bg-base)', color: 'var(--text-primary)', padding: '20px'
-      }}>
-        <div className="card fade-in" style={{ maxWidth: '500px', width: '100%', padding: '40px', textAlign: 'center', border: '2px solid var(--orange)' }}>
-          <div style={{ color: 'var(--orange)', marginBottom: '20px' }}>
-            <AlertCircle size={64} />
-          </div>
-          <h1 style={{ marginBottom: '16px' }}>Desktop App Required</h1>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', lineHeight: '1.6' }}>
-            To ensure a secure, proctored environment, this assessment <strong>cannot</strong> be taken in a standard browser.
-            Please download and install our standalone desktop application to continue.
-          </p>
+  const securityCheckCompleted = isElectron 
+    ? (monitorState !== 'pending' && processState !== 'pending' && vmState !== 'pending')
+    : true;
 
-          <a 
-            href={`${import.meta.env.VITE_BACKEND_URL}/downloads/IndiumAssessment.exe`}
-            className="btn btn-primary" 
-            style={{ width: '100%', padding: '16px', fontSize: '1.1rem', fontWeight: 'bold', textDecoration: 'none', display: 'block' }}
-          >
-             Download for Windows
-          </a>
-
-          <p style={{ marginTop: '24px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            After installing, please open the <strong>Indium Assessment</strong> app and log in with your credentials.
-          </p>
-        </div>
+  // Browser Mode Warning Header
+  const browserWarning = !isElectron && (
+    <div style={{ 
+      background: 'rgba(251, 133, 30, 0.1)', 
+      border: '1px solid var(--orange)', 
+      borderRadius: '8px', 
+      padding: '12px 16px', 
+      marginBottom: '24px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px',
+      textAlign: 'left'
+    }}>
+      <AlertCircle size={24} color="var(--orange)" style={{ flexShrink: 0 }} />
+      <div style={{ fontSize: '0.85rem' }}>
+        <strong style={{ color: 'var(--orange)', display: 'block', marginBottom: '2px' }}>Browser Mode Enabled</strong>
+        You are attending via a standard browser. Advanced proctoring features (background app scanning, multimonitor detection) are disabled.
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
     <div style={{
@@ -209,6 +201,7 @@ export default function PermissionsGatePage() {
         <h1 style={{ marginBottom: '8px', textAlign: 'center' }}>
           <span style={{ color: 'var(--orange)' }}>System</span> Check
         </h1>
+        {browserWarning}
         <p style={{ color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '32px' }}>
           To ensure a fair and supervised assessment environment, we require hardware and integrity verification.
         </p>
@@ -292,9 +285,15 @@ export default function PermissionsGatePage() {
                </div>
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-               {monitorState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> Single Display</>}
-               {monitorState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Multimonitor</>}
-               {monitorState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Checking...</span>}
+               {isElectron ? (
+                 <>
+                  {monitorState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> Single Display</>}
+                  {monitorState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Multimonitor</>}
+                  {monitorState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Checking...</span>}
+                 </>
+               ) : (
+                 <span style={{ color: 'var(--text-muted)' }}>N/A (Browser)</span>
+               )}
             </div>
           </div>
 
@@ -314,9 +313,15 @@ export default function PermissionsGatePage() {
                </div>
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-               {processState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> System Verified</>}
-               {processState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Unauthorized Apps</>}
-               {processState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Scanning...</span>}
+               {isElectron ? (
+                 <>
+                  {processState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> System Verified</>}
+                  {processState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Unauthorized Apps</>}
+                  {processState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Scanning...</span>}
+                 </>
+               ) : (
+                 <span style={{ color: 'var(--text-muted)' }}>N/A (Browser)</span>
+               )}
             </div>
           </div>
 
@@ -336,9 +341,15 @@ export default function PermissionsGatePage() {
                </div>
             </div>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-               {vmState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> Genuine Device</>}
-               {vmState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Virtualized OS</>}
-               {vmState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Checking...</span>}
+               {isElectron ? (
+                 <>
+                  {vmState === 'success' && <><CheckCircle size={14} color="var(--green-dark)" /> Genuine Device</>}
+                  {vmState === 'failed' && <><AlertCircle size={14} color="var(--red)" /> Virtualized OS</>}
+                  {vmState === 'pending' && <span style={{ color: 'var(--text-muted)' }}>Checking...</span>}
+                 </>
+               ) : (
+                 <span style={{ color: 'var(--text-muted)' }}>N/A (Browser)</span>
+               )}
             </div>
           </div>
 
@@ -346,9 +357,10 @@ export default function PermissionsGatePage() {
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {!bothWorking ? (
-            <button className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={testPermissions}>
-              <RefreshCw size={18} /> Run Full Security Check
+          {!bothWorking || !securityCheckCompleted ? (
+            <button className="btn btn-primary" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={testPermissions} disabled={cameraState === 'testing'}>
+              <RefreshCw size={18} className={cameraState === 'testing' ? 'spin' : ''} /> 
+              {cameraState === 'testing' ? 'Testing Hardware...' : 'Run Hardware Check'}
             </button>
           ) : (
             <button className="btn btn-success" style={{ width: '100%', padding: '14px', fontSize: '1rem' }} onClick={handleContinue}>

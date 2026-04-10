@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { recruiterApi } from '../../services/api.services'
 import {
   Search, Mail, Eye, Activity, Monitor, UserCheck, Lock,
-  Clock, ChevronDown, Plus, X, RefreshCw, Users, Download, Edit3, Trash2, Minus
+  Clock, ChevronDown, Plus, X, RefreshCw, Users, Download, Edit3, Trash2, Minus, Zap
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -12,6 +12,7 @@ import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { useRolePath } from '../../hooks/useRolePath'
+import RoundReviewModal from '../../components/recruiter/RoundReviewModal'
 
 // ------------------------------------------------------------------
 //  Status config
@@ -432,6 +433,7 @@ export default function CandidatesPage() {
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [editingCandidate, setEditingCandidate] = useState<any | null>(null)
   const [deletingCandidate, setDeletingCandidate] = useState<any | null>(null)
+  const [reviewingRound, setReviewingRound] = useState<any | null>(null)
 
   const { data: campaigns = [], isLoading: isLoadingCampaigns } = useQuery({
     queryKey: ['recruiter', 'campaigns'],
@@ -723,6 +725,33 @@ export default function CandidatesPage() {
                 <span className="badge badge-muted">{filtered.length} candidates</span>
               </div>
 
+              {/* ── Campaigns Rounds Review ───────────────────── */}
+              {activeCampaign?.campaign?.rounds?.length > 0 && (
+                <div style={{ 
+                  padding: '12px 20px', background: 'rgba(251,133,30,0.03)', 
+                  borderBottom: '1px solid var(--border)', display: 'flex', 
+                  alignItems: 'center', gap: '16px', overflowX: 'auto' 
+                }}>
+                  <div style={{ 
+                    fontSize: '0.72rem', fontWeight: 700, color: 'var(--orange)', 
+                    textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 
+                  }}>
+                    Round Reviews:
+                  </div>
+                  {activeCampaign.campaign.rounds.map((r: any) => (
+                    <button 
+                      key={r.id} 
+                      className="btn btn-ghost btn-sm"
+                      style={{ gap: '6px', fontSize: '0.78rem', padding: '6px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
+                      onClick={() => setReviewingRound(r)}
+                    >
+                      <Zap size={14} style={{ color: 'var(--orange)' }} />
+                      Round {r.order}: {r.roundType}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {filtered.length === 0 ? (
                 <div className="empty-state" style={{ padding: '48px 20px', border: 'none' }}>
                   <div className="empty-icon"><Users size={36} style={{ opacity: 0.25 }} /></div>
@@ -980,6 +1009,13 @@ export default function CandidatesPage() {
         />
       )}
 
+      {reviewingRound && (
+        <RoundReviewModal 
+          campaignId={selectedCampaignId}
+          round={reviewingRound}
+          onClose={() => setReviewingRound(null)}
+        />
+      )}
     </div>
   )
 }

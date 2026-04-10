@@ -19,6 +19,8 @@ model User {
   lastLoginAt        DateTime?
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
+  otpHash            String?
+  otpExpiry          DateTime?
   adminProfile       AdminProfile?
   candidateProfile   CandidateProfile?
   jwtBlacklist       JWTBlacklist[]
@@ -58,6 +60,7 @@ model CandidateProfile {
   adminDecision      String?
   enrolledAt         DateTime?
   enrollmentPhotoUrl String?
+  kycVerifiedAt      DateTime?
   faceDescriptor     Json?
   isForwarded        Boolean            @default(false)
   attempts           CandidateAttempt[]
@@ -466,7 +469,6 @@ enum RoundType {
   MCQ
   CODING
   INTERVIEW
-  MIXED
 }
 
 enum InterviewMode {

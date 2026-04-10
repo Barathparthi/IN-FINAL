@@ -18,18 +18,17 @@ interface Props {
   hiringType?: 'CAMPUS' | 'LATERAL'
 }
 
-const ALL_ROUND_TYPES: Round['roundType'][] = ['MCQ', 'CODING', 'INTERVIEW', 'MIXED']
+const ALL_ROUND_TYPES: Round['roundType'][] = ['MCQ', 'CODING', 'INTERVIEW']
 const CAMPUS_ROUND_TYPES: Round['roundType'][] = ['MCQ', 'CODING']
-const LATERAL_ROUND_TYPES: Round['roundType'][] = ['CODING', 'INTERVIEW', 'MIXED']
+const LATERAL_ROUND_TYPES: Round['roundType'][] = ['CODING', 'INTERVIEW']
 
 const TYPE_LABELS: Record<string, string> = {
-  MCQ: 'Multiple Choice', CODING: 'Coding Challenge', INTERVIEW: 'AI Interview', MIXED: 'Mixed Round',
+  MCQ: 'Multiple Choice', CODING: 'Coding Challenge', INTERVIEW: 'AI Interview',
 }
 const TYPE_DESC: Record<string, string> = {
   MCQ: 'Volume screening for freshers',
   CODING: 'Algorithmic / data structure problems',
   INTERVIEW: 'AI-powered conversational interview',
-  MIXED: 'Combined round with multiple types',
 }
 
 function SortableRound({
@@ -117,7 +116,7 @@ export default function Step2Pipeline({ form, update, hiringType = 'LATERAL' }: 
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
           {hiringType === 'CAMPUS'
             ? 'Campus hiring: MCQ and Coding rounds only'
-            : 'Lateral hiring: Coding, Interview and Mixed rounds (no MCQ)'}
+            : 'Lateral hiring: Coding and Interview rounds (no MCQ)'}
         </p>
       </div>
 

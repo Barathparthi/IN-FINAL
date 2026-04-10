@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "generate:openapi": "node swagger.js",
+    "dev": "npm run generate:openapi && tsx watch src/index.ts",
+    "build": "npm run generate:openapi && tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit"
@@ -14,6 +15,7 @@
     "@aws-sdk/s3-request-presigner": "^3.893.0",
     "@azure/msal-node": "^2.9.0",
     "@prisma/client": "^5.14.0",
+    "@scalar/express-api-reference": "^0.9.6",
     "@types/nodemailer": "^7.0.11",
     "axios": "^1.7.0",
     "bcryptjs": "^2.4.3",
@@ -37,6 +39,7 @@
     "pdfkit": "^0.15.0",
     "redis": "^4.6.0",
     "socket.io": "^4.8.3",
+    "swagger-autogen": "^2.23.7",
     "uuid": "^10.0.0",
     "winston": "^3.13.0",
     "zod": "^3.23.0"

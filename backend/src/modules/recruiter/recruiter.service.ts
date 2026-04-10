@@ -7,6 +7,11 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
+function getFrontendBaseUrl(): string {
+  if (process.env.FRONTEND_URL) return process.env.FRONTEND_URL
+  return (process.env.CLIENT_URL || '').split(',')[0]?.trim() || 'http://localhost:3000'
+}
+
 export async function getDashboardStats(userId: string, role: string) {
   let campaignIds: string[] = []
   
@@ -152,7 +157,7 @@ export async function grantPermission(candidateId: string) {
     tempPassword,
     campaignName:  candidate.campaign.name,
     role:          candidate.campaign.role,
-    loginUrl:      `${process.env.CLIENT_URL}/login`,
+    loginUrl:      `${getFrontendBaseUrl()}/login`,
     downloadUrl:   `${process.env.BACKEND_URL}/downloads/Indium Secure Assessment 1.0.1.exe`,
   })
 
@@ -408,4 +413,99 @@ export async function reduceStrike(attemptId: string) {
   }
 
   return { ok: true, count: newCount }
+}
+
+export async function getRoundReview(roundId: string) {
+  return prisma.pipelineRound.findUniqueOrThrow({
+    where: { id: roundId },
+    include: {
+      attempts: {
+        where: { status: 'COMPLETED' },
+        include: {
+          candidate: {
+            include: {
+              user: { select: { firstName: true, lastName: true, email: true } },
+              scorecard: { select: { technicalFitPercent: true, trustScore: true } }
+            }
+          }
+        }
+      }
+    }
+  })
+}
+
+export async function updateRoundCriteria(roundId: string, passMarkPercent: number) {
+  // Update both root field and roundConfig for consistency
+  const round = await prisma.pipelineRound.findUniqueOrThrow({ where: { id: roundId } })
+  const cfg = (round.roundConfig as any) || {}
+  cfg.passMarkPercent = passMarkPercent
+
+  return prisma.pipelineRound.update({
+    where: { id: roundId },
+    data: { 
+      passMarkPercent,
+      roundConfig: cfg
+    }
+  })
+}
+
+export async function bulkAdvanceCandidates(roundId: string, candidateIds: string[], userId: string, role: string) {
+  const round = await prisma.pipelineRound.findUniqueOrThrow({
+    where: { id: roundId },
+    include: { campaign: { include: { rounds: { orderBy: { order: 'asc' } } } } }
+  })
+
+  const nextRound = round.campaign.rounds.find(r => r.order === round.order + 1)
+  const results = { advanced: 0, failed: 0 }
+
+  for (const candidateId of candidateIds) {
+    try {
+      // 1. Mark the attempt for this round as passed
+      const attempt = await prisma.candidateAttempt.findFirst({
+        where: { candidateId, roundId, status: 'COMPLETED' },
+        orderBy: { completedAt: 'desc' }
+      })
+
+      if (attempt) {
+        await prisma.candidateAttempt.update({
+          where: { id: attempt.id },
+          data: { passed: true }
+        })
+      }
+
+      // 2. Advance Candidate Status
+      if (!nextRound) {
+        // Last round completed
+        await prisma.candidateProfile.update({
+          where: { id: candidateId },
+          data: { status: 'COMPLETED' }
+        })
+      } else {
+        // More rounds - unlock next
+        await prisma.candidateProfile.update({
+          where: { id: candidateId },
+          data: { status: 'IN_PROGRESS' }
+        })
+      }
+
+      // 3. Log it
+      await prisma.auditLog.create({
+        data: {
+          actorId: userId,
+          actorRole: role as any,
+          action: 'CANDIDATE_MANUAL_ADVANCED',
+          entityType: 'CandidateProfile',
+          entityId: candidateId,
+          metadata: { fromRound: round.order, nextRoundOrder: nextRound?.order || 'FINAL' }
+        }
+      })
+
+      results.advanced++
+    } catch (err) {
+      console.error(`Failed to advance candidate ${candidateId}:`, err)
+      results.failed++
+    }
+  }
+
+  return results
 }

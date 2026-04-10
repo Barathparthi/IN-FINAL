@@ -28,6 +28,8 @@ export const adminApi = {
     api.delete(`/admin/recruiters/${id}`).then((r) => r.data),
   removeRecruiterFromCampaign: (recruiterId: string, campaignId: string) =>
     api.delete(`/admin/recruiters/${recruiterId}/campaigns/${campaignId}`).then((r) => r.data),
+  bulkEvaluateRound: (campaignId: string, roundId: string, passMarkPercent: number) =>
+    api.post(`/admin/campaigns/${campaignId}/rounds/${roundId}/bulk-evaluate`, { passMarkPercent }).then(r => r.data),
 }
 
 // ── Recruiter ───────────────────────────────────────────────────
@@ -61,8 +63,16 @@ export const recruiterApi = {
     api.post(`/scorecard/${candidateId}/forward-to-admin`).then(r => r.data),
   exportCampaignExcel: (campaignId: string) =>
     api.get(`/scorecard/campaign/${campaignId}/export-excel`, { responseType: 'blob' }).then(r => r.data),
+
   reduceStrike: (attemptId: string) =>
     api.patch(`/recruiter/attempts/${attemptId}/reduce-strike`).then(r => r.data),
+  // Round Review & Advancement
+  getRoundReview: (campaignId: string, roundId: string) =>
+    api.get(`/recruiter/campaigns/${campaignId}/rounds/${roundId}/review`).then(r => r.data),
+  updateRoundCriteria: (roundId: string, passMarkPercent: number) =>
+    api.patch(`/recruiter/rounds/${roundId}/criteria`, { passMarkPercent }).then(r => r.data),
+  bulkAdvanceCandidates: (roundId: string, candidateIds: string[]) =>
+    api.post(`/recruiter/rounds/${roundId}/advance`, { candidateIds }).then(r => r.data),
 }
 
 // ── Campaigns ─────────────────────────────────────────────────
@@ -107,6 +117,8 @@ export const candidateApi = {
   },
   saveFaceIdentity: (data: { descriptor: any; photoUrl: string }) =>
     api.post('/candidate/identity', data).then(r => r.data),
+  sendKycOtp: () => api.post('/candidate/kyc/send-otp').then(r => r.data),
+  verifyKycOtp: (otp: string) => api.post('/candidate/kyc/verify-otp', { otp }).then(r => r.data),
 }
 
 // ── Question / Pool ──────────────────────────────────────────

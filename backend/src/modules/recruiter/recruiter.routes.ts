@@ -34,3 +34,8 @@ recruiterRouter.patch('/candidates/:candidateId/notes',              C.saveRecru
 
 // Proctoring manual override
 recruiterRouter.patch('/attempts/:attemptId/reduce-strike',          C.reduceStrike)
+
+// Round Management (Lateral Hiring manual advancement)
+recruiterRouter.get('/campaigns/:campaignId/rounds/:roundId/review', C.getRoundReview)
+recruiterRouter.patch('/rounds/:roundId/criteria',                   C.updateRoundCriteria)
+recruiterRouter.post('/rounds/:roundId/advance',                     C.bulkAdvanceCandidates)

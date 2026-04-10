@@ -36,13 +36,26 @@ export function credentialTemplate(p: {
     </table>
 
     <div style="margin-top:24px;padding-top:16px;border-top:2px dashed #fed7aa;text-align:center">
-       <p style="font-size:12px;font-weight:bold;color:#FB851E;margin-bottom:12px">STEP 1: DOWNLOAD THE SECURE APP</p>
-       <a href="${p.downloadUrl}" style="background:#FB851E;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin:4px">
-         Download for Windows (.exe)
-       </a>
-       <a href="${p.downloadUrl.replace('.exe', '.dmg')}" style="background:#4b5563;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;margin:4px">
-         Download for Mac (.dmg)
-       </a>
+       <p style="font-size:13px;font-weight:bold;color:#FB851E;margin-bottom:12px">STEP 1: CHOOSE YOUR ASSESSMENT MODE</p>
+       
+       <div style="margin-bottom:20px">
+         <p style="font-size:13px;margin-bottom:10px"><strong>Option A: Premium Web Experience (Recommended)</strong></p>
+         <a href="${p.loginUrl}" style="background:#FB851E;color:#fff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:bold;display:inline-block;box-shadow:0 4px 12px rgba(251,133,30,0.3)">
+           Start in Browser
+         </a>
+         <p style="font-size:11px;color:#6b7280;margin-top:6px">No installation required • Works in Chrome/Edge/Safari</p>
+       </div>
+
+       <div style="background:rgba(251,133,30,0.05);padding:16px;border-radius:12px">
+         <p style="font-size:13px;margin:0 0 10px"><strong>Option B: Secure Desktop App</strong></p>
+         <a href="${p.downloadUrl}" style="background:#4b5563;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;display:inline-block;margin:4px">
+           Windows (.exe)
+         </a>
+         <a href="${p.downloadUrl.replace('.exe', '.dmg')}" style="background:#4b5563;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:bold;display:inline-block;margin:4px">
+           Mac (.dmg)
+         </a>
+         <p style="font-size:11px;color:#6b7280;margin-top:6px">Recommended for unstable internet or strict security compliance</p>
+       </div>
     </div>
   </div>
 
