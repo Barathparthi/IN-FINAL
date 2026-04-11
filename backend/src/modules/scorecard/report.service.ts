@@ -267,41 +267,108 @@ export function generateReportPDF(data: ReportData): Readable {
   if (data.scorecard.gapAnalysis) {
     const gap = data.scorecard.gapAnalysis
     
-    // Resume vs JD Score and Evaluation Box
+    // ── Resume vs Job Description Alignment ─────────────────────
     if (gap.resumeJDFitScore != null || gap.resumeEvaluationNotes) {
-      pageCheck(doc, 80)
+      pageCheck(doc, 100)
       sectionTitle(doc, 'Resume vs Job Description Alignment')
-      
+
       const fitScore = gap.resumeJDFitScore ?? 0
       const fitColor = fitScore >= 80 ? GREEN : fitScore >= 50 ? AMBER : RED
-      
-      const boxY = doc.y
-      doc.rect(MARGIN, boxY, 80, 50).fill(LIGHT).stroke(BORDER)
-      doc.rect(MARGIN, boxY, 4, 50).fill(fitColor)
-      doc.fillColor(LGRAY).fontSize(8).text('Match Score', MARGIN + 10, boxY + 12)
-      doc.fillColor(fitColor).fontSize(20).font('Helvetica-Bold').text(`${fitScore}%`, MARGIN + 10, boxY + 24)
+      const fitBg    = fitScore >= 80 ? '#F0FDF4' : fitScore >= 50 ? '#FFFBEB' : '#FEF2F2'
 
+      // Measure note text height so the card auto-sizes
+      const noteText   = gap.resumeEvaluationNotes || ''
+      const scoreBoxW  = 96
+      const noteColW   = contentW(doc) - scoreBoxW - 28
+      doc.fontSize(8.5)
+      const noteH      = gap.resumeEvaluationNotes
+        ? doc.heightOfString(noteText, { width: noteColW })
+        : 0
+      const cardH = Math.max(64, noteH + 28)
+
+      const cardY = doc.y
+
+      // Outer card
+      doc.rect(MARGIN, cardY, contentW(doc), cardH).fill(LIGHT).stroke(BORDER)
+      // Accent left bar
+      doc.rect(MARGIN, cardY, 4, cardH).fill(fitColor)
+      // Score panel background
+      doc.rect(MARGIN + 4, cardY, scoreBoxW, cardH).fill(fitBg)
+      // Vertical divider
+      doc.moveTo(MARGIN + 4 + scoreBoxW, cardY + 8)
+         .lineTo(MARGIN + 4 + scoreBoxW, cardY + cardH - 8)
+         .lineWidth(0.5).stroke(BORDER)
+
+      // Score label
+      doc.fillColor(LGRAY).fontSize(7).font('Helvetica-Bold')
+         .text('MATCH SCORE', MARGIN + 12, cardY + 14, { width: scoreBoxW - 8 })
+      // Score value
+      doc.fillColor(fitColor).fontSize(28).font('Helvetica-Bold')
+         .text(`${fitScore}%`, MARGIN + 12, cardY + 26, { width: scoreBoxW - 8 })
+
+      // Notes text — contained inside the right column
       if (gap.resumeEvaluationNotes) {
-        doc.fillColor(DARK).fontSize(9).font('Helvetica').text(gap.resumeEvaluationNotes, MARGIN + 95, boxY + 8, { width: contentW(doc) - 95 })
+        doc.fillColor(DARK).fontSize(8.5).font('Helvetica')
+           .text(gap.resumeEvaluationNotes,
+             MARGIN + 4 + scoreBoxW + 14,
+             cardY + 14,
+             { width: noteColW, lineGap: 2 }
+           )
       }
-      doc.y = Math.max(doc.y, boxY + 60)
+
+      doc.y = cardY + cardH + 14
     }
 
-    // COMPETENCY MATRIX
-    const allSkills = [
-      ...(gap.jdMatchedSkills || []).map((s: string) => ({ skill: s, score: 9, color: GREEN })),
-      ...(gap.jdMissingSkills || []).map((s: string) => ({ skill: s, score: 3, color: RED }))
+    // ── JD Fitness Table ─────────────────────────────────────────
+    const jdMatchedSkills = (gap.jdMatchedSkills || []) as string[]
+    const jdMissingSkills = (gap.jdMissingSkills || []) as string[]
+    const fitnessRows = [
+      ...jdMatchedSkills.map((s: string) => ({ skill: s, label: 'MATCHED',  color: GREEN })),
+      ...jdMissingSkills.map((s: string) => ({ skill: s, label: 'MISSING',  color: RED   }))
     ]
-    if (allSkills.length > 0) {
-      pageCheck(doc, 40 + allSkills.length * 20)
-      sectionTitle(doc, 'Competency Matrix')
-      allSkills.forEach((s) => {
-        const rowY = doc.y
-        doc.fillColor(DARK).fontSize(9).font('Helvetica').text(s.skill, MARGIN, rowY + 2, { width: 170 })
-        scoreBar(doc, MARGIN + 180, rowY + 4, 200, 8, s.score * 10, 60, s.color)
-        doc.fillColor(s.color).fontSize(9).font('Helvetica-Bold').text(`${s.score}/10`, MARGIN + 390, rowY + 2)
-        doc.y = rowY + 20
+
+    if (fitnessRows.length > 0) {
+      const ROW_H   = 26
+      const HDR_H   = 26
+      const COL1_W  = contentW(doc) - 130
+      const COL2_W  = 130
+      const tableH  = HDR_H + fitnessRows.length * ROW_H + 2
+
+      pageCheck(doc, tableH + 50)
+      sectionTitle(doc, 'JD Fitness')
+
+      const tblY = doc.y
+
+      // ── Header row
+      doc.rect(MARGIN,          tblY, COL1_W, HDR_H).fill(NAVY)
+      doc.rect(MARGIN + COL1_W, tblY, COL2_W, HDR_H).fill('#334155')
+      doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+         .text('JD SKILL',      MARGIN + 12,          tblY + 9, { width: COL1_W - 20 })
+      doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+         .text('RESUME MATCH',  MARGIN + COL1_W + 10, tblY + 9, { width: COL2_W - 20, align: 'center' })
+
+      // ── Data rows
+      fitnessRows.forEach((row, idx) => {
+        const rY   = tblY + HDR_H + idx * ROW_H
+        const bgFill = idx % 2 === 0 ? WHITE : LIGHT
+
+        // Cell backgrounds
+        doc.rect(MARGIN,          rY, COL1_W, ROW_H).fill(bgFill).stroke(BORDER)
+        doc.rect(MARGIN + COL1_W, rY, COL2_W, ROW_H).fill(bgFill).stroke(BORDER)
+
+        // Skill name
+        doc.fillColor(DARK).fontSize(9).font('Helvetica')
+           .text(row.skill, MARGIN + 12, rY + 8, { width: COL1_W - 24 })
+
+        // RAG pill
+        const PILL_W = 74
+        const pillX  = MARGIN + COL1_W + (COL2_W - PILL_W) / 2
+        doc.rect(pillX, rY + 6, PILL_W, 14).fill(row.color)
+        doc.fillColor(WHITE).fontSize(7.5).font('Helvetica-Bold')
+           .text(row.label, pillX, rY + 10, { width: PILL_W, align: 'center' })
       })
+
+      doc.y = tblY + HDR_H + fitnessRows.length * ROW_H + 14
     }
 
     // RESUME CLAIM VS INTERVIEW PERFORMANCE MISMATCH TABLE

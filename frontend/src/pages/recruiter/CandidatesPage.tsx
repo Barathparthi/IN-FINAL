@@ -870,17 +870,11 @@ export default function CandidatesPage() {
                               {c.resumeUrl ? (
                                 <div
                                   style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--blue)', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 500 }}
-                                  title="Download Resume"
+                                  title="View Resume"
                                   onClick={() => {
-                                    let url = c.resumeUrl.startsWith('http')
+                                    const url = c.resumeUrl.startsWith('http')
                                       ? c.resumeUrl
                                       : `${(import.meta.env.VITE_API_BASE_URL || '').replace(/\/api$/, '')}${c.resumeUrl}`
-                                    
-                                    // Strip broken cloudinary signatures for older resumes
-                                    if (url.includes('s--') && url.includes('res.cloudinary.com')) {
-                                      url = url.replace(/s--[a-zA-Z0-9_-]+--\//, '')
-                                    }
-
                                     window.open(url, '_blank')
                                   }}
                                 >

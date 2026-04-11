@@ -66,6 +66,9 @@ export const recruiterApi = {
 
   reduceStrike: (attemptId: string) =>
     api.patch(`/recruiter/attempts/${attemptId}/reduce-strike`).then(r => r.data),
+  // Resume — gets a fresh signed URL from backend (avoids Cloudinary expiry)
+  getResumeUrl: (candidateId: string) =>
+    api.get(`/recruiter/candidates/${candidateId}/resume-url`).then(r => r.data),
   // Round Review & Advancement
   getRoundReview: (campaignId: string, roundId: string) =>
     api.get(`/recruiter/campaigns/${campaignId}/rounds/${roundId}/review`).then(r => r.data),

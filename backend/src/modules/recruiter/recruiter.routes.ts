@@ -39,3 +39,6 @@ recruiterRouter.patch('/attempts/:attemptId/reduce-strike',          C.reduceStr
 recruiterRouter.get('/campaigns/:campaignId/rounds/:roundId/review', C.getRoundReview)
 recruiterRouter.patch('/rounds/:roundId/criteria',                   C.updateRoundCriteria)
 recruiterRouter.post('/rounds/:roundId/advance',                     C.bulkAdvanceCandidates)
+
+// Resume viewing — generates a fresh signed Cloudinary URL valid for 1 hour
+recruiterRouter.get('/candidates/:candidateId/resume-url',           C.getResumeUrl)

@@ -36,10 +36,18 @@ export default function DashboardPage() {
     queryFn: adminApi.getDashboard,
   })
 
-  const { data: campaigns = [] } = useQuery({
+  const { data: _campaignsRaw } = useQuery({
     queryKey: ['campaigns'],
     queryFn: campaignApi.getAll,
   })
+  // Normalise: backend may return [] directly OR { campaigns: [] } OR { data: [] }
+  const campaigns: any[] = Array.isArray(_campaignsRaw)
+    ? _campaignsRaw
+    : Array.isArray(_campaignsRaw?.campaigns)
+    ? _campaignsRaw.campaigns
+    : Array.isArray(_campaignsRaw?.data)
+    ? _campaignsRaw.data
+    : []
 
   // Rejection modal state
   const [rejectTarget, setRejectTarget] = useState<any>(null)

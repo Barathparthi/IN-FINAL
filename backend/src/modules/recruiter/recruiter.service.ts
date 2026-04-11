@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma'
 import { sendCandidateCredentials } from '../email/email.service'
 import { generateTempPassword } from '../../utils/password.util'
 import bcrypt from 'bcryptjs'
+import cloudinary from '../../lib/cloudinary'
 import { gapAnalysisQueue } from '../../jobs/queue'
 
 function isValidEmail(email: string): boolean {
@@ -126,6 +127,45 @@ export async function getCandidates(campaignId: string, userId: string, role: st
     },
     orderBy: { createdAt: 'desc' },
   })
+}
+
+// Streams the candidate's resume PDF through the backend (bypasses Cloudinary delivery auth)
+export async function streamResumePdf(candidateId: string): Promise<{ buffer: Buffer; filename: string }> {
+  const candidate = await prisma.candidateProfile.findUniqueOrThrow({
+    where:  { id: candidateId },
+    select: { resumeUrl: true },
+  })
+
+  if (!candidate.resumeUrl) {
+    throw { status: 404, message: 'No resume uploaded for this candidate' }
+  }
+
+  // Use Cloudinary API to get a private download link (server-to-server — no 401)
+  // Extract public_id from the stored URL
+  const publicIdMatch = candidate.resumeUrl.match(/\/upload\/(?:s--[^/]+--\/)?(?:v\d+\/)?(.+?)(?:\?|$)/)
+  const rawPublicId = publicIdMatch ? publicIdMatch[1] : null
+
+  let fetchUrl: string
+  if (rawPublicId) {
+    // Generate a private download URL using Cloudinary Admin API (server-side, always works)
+    const privateUrl = cloudinary.utils.private_download_url(rawPublicId, 'pdf', {
+      resource_type: 'raw',
+      expires_at: Math.floor(Date.now() / 1000) + 300, // 5 minutes
+    })
+    fetchUrl = privateUrl
+  } else {
+    fetchUrl = candidate.resumeUrl
+  }
+
+  const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(15000) })
+  if (!response.ok) {
+    throw { status: 502, message: `Failed to fetch resume from storage (HTTP ${response.status})` }
+  }
+  const arrayBuffer = await response.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+
+  const filename = `resume_${candidateId}.pdf`
+  return { buffer, filename }
 }
 
 export async function grantPermission(candidateId: string) {

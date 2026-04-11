@@ -114,3 +114,13 @@ export async function bulkAdvanceCandidates(req: Request, res: Response, next: N
     ))
   } catch (err) { next(err) }
 }
+
+export async function getResumeUrl(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { buffer, filename } = await RecruiterService.streamResumePdf(req.params.candidateId)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`)
+    res.setHeader('Content-Length', buffer.length)
+    res.send(buffer)
+  } catch (err) { next(err) }
+}
