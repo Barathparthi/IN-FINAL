@@ -563,14 +563,27 @@ export async function completeAttempt(attemptId: string, candidateId: string) {
     include: { mcqAnswers: true, codingSubmissions: true, interviewAnswers: true },
   })
 
-  const roundCfg = await prisma.pipelineRound.findUnique({
+  const round = await prisma.pipelineRound.findUnique({
     where: { id: attempt.roundId },
-    select: { roundConfig: true, passMarkPercent: true },
+    select: { roundConfig: true, passMarkPercent: true, roundType: true },
   })
-  const cfg = (roundCfg?.roundConfig as any) || {}
+  const cfg = (round?.roundConfig as any) || {}
+
+  let mcqMax = 0
+  let codingMax = 0
+  let interviewMax = 0
+  const numAssigned = (attempt.assignedQuestionIds || []).length
+
+  if (round?.roundType === 'MCQ') {
+    mcqMax = numAssigned * (cfg.marksPerQuestion || 1)
+  } else if (round?.roundType === 'CODING') {
+    codingMax = numAssigned * 10
+  } else if (round?.roundType === 'INTERVIEW') {
+    // interviewTotal normalizes aiScore / 10, so max per question is 1
+    interviewMax = numAssigned
+  }
 
   const mcqTotal = attempt.mcqAnswers.reduce((s, a) => s + (a.marksAwarded || 0), 0)
-  const mcqMax = attempt.assignedQuestionIds?.length ? attempt.assignedQuestionIds.length * (cfg.marksPerQuestion || 1) : 0
   
   // Only count the latest submission per question for total
   const latestSubs: Record<string, any> = {}
@@ -579,20 +592,14 @@ export async function completeAttempt(attemptId: string, candidateId: string) {
       latestSubs[s.questionId] = s
     }
   })
-  
   const codingTotal = Object.values(latestSubs).reduce((s, a: any) => s + (a.marksAwarded || 0), 0)
-  
-  // ── FIX: Max score must encompass ALL assigned questions (not just submitted ones)
-  const codingQuestionsAssigned = (attempt.assignedQuestionIds || []).length
-  const codingMax = codingQuestionsAssigned * 10
-  
   const interviewTotal = attempt.interviewAnswers.reduce((s, a) => s + ((a.aiScore || 0) / 10), 0)
-  const interviewMax = attempt.interviewAnswers.length
 
   const rawScore = mcqTotal + codingTotal + interviewTotal
   const maxScore = Math.max(1, mcqMax + codingMax + interviewMax)
   const pctScore = (rawScore / maxScore) * 100
-  const passMark = roundCfg?.passMarkPercent ?? 60
+
+  const passMark = round?.passMarkPercent ?? 60
   const passed = calculatePassFail(rawScore, maxScore, passMark)
 
   // Save attempt result

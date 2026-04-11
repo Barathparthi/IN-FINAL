@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { recruiterApi } from '../../services/api.services'
-import { X, UserCheck, Filter, ChevronRight, Zap, Trophy, ShieldCheck, Search } from 'lucide-react'
+import { X, UserCheck, Filter, Zap, ShieldCheck, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface RoundReviewModalProps {
@@ -40,11 +40,11 @@ export default function RoundReviewModal({ campaignId, round, onClose }: RoundRe
     })
   }, [attempts, passMark])
 
-  const filteredCandidates = processedCandidates.filter(c => 
+  const filteredCandidates = processedCandidates.filter((c: any) => 
     c.searchStr.includes(search.toLowerCase())
   )
 
-  const qualifiedCount = processedCandidates.filter(c => c.qualifies).length
+  const qualifiedCount = processedCandidates.filter((c: any) => c.qualifies).length
 
   const updateCriteriaMutation = useMutation({
     mutationFn: (val: number) => recruiterApi.updateRoundCriteria(round.id, val),
@@ -77,11 +77,11 @@ export default function RoundReviewModal({ campaignId, round, onClose }: RoundRe
   }
 
   const selectAllQualified = () => {
-    const qualified = filteredCandidates.filter(c => c.qualifies && c.passed !== true)
+    const qualified = filteredCandidates.filter((c: any) => c.qualifies && c.passed !== true)
     if (selectedIds.size === qualified.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(qualified.map(c => c.candidateId)))
+      setSelectedIds(new Set(qualified.map((c: any) => c.candidateId)))
     }
   }
 
@@ -164,7 +164,7 @@ export default function RoundReviewModal({ campaignId, round, onClose }: RoundRe
                 />
              </div>
              <button className="btn btn-ghost btn-sm" onClick={selectAllQualified} style={{ fontSize: '0.8rem' }}>
-                {selectedIds.size === filteredCandidates.filter(c => c.qualifies && c.passed !== true).length ? 'Unselect All' : 'Select All Qualified'}
+                {selectedIds.size === filteredCandidates.filter((c: any) => c.qualifies && c.passed !== true).length ? 'Unselect All' : 'Select All Qualified'}
              </button>
           </div>
 
