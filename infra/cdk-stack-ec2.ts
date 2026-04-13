@@ -272,13 +272,18 @@ export class Ec2SingleInstanceStack extends cdk.Stack {
     // ----------------------------------------------------------------------
     const userDataScript = `set -euxo pipefail
 
-# Install Node.js (v20) for frontend build
-curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-apt-get install -y nodejs
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get upgrade -y
+apt-get install -y docker.io docker-compose git nginx jq pwgen curl
 
-# Add 4GB swap to be safe for builds
+systemctl enable docker
+systemctl start docker
+usermod -aG docker ubuntu || true
+
+# Add 2GB swap to avoid OOM during npm/prisma build on smaller instance sizes.
 if [ ! -f /swapfile ]; then
-  fallocate -l 4G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=4096
+  fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
   chmod 600 /swapfile
   mkswap /swapfile
 fi
@@ -317,25 +322,31 @@ if [ -z "$BACKEND_DATABASE_URL" ]; then
   BACKEND_DATABASE_URL="postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/indium_db"
 fi
 
-# Determine IP/Public URL for frontend
-PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || echo "localhost")
-PUBLIC_URL="http://\${PUBLIC_IP}"
+JWT_SECRET_VALUE="${jwtSecretParam.valueAsString}"
+if [ -z "$JWT_SECRET_VALUE" ]; then
+  JWT_SECRET_VALUE="$JWT_SECRET"
+fi
+
+JWT_REFRESH_SECRET_VALUE="${jwtRefreshSecretParam.valueAsString}"
+if [ -z "$JWT_REFRESH_SECRET_VALUE" ]; then
+  JWT_REFRESH_SECRET_VALUE="$JWT_REFRESH_SECRET"
+fi
 
 cat <<EOF > .env
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="\${POSTGRES_PASSWORD}"
 
 DATABASE_URL="\${BACKEND_DATABASE_URL}"
-JWT_SECRET="\${jwtSecretParam.valueAsString:-$JWT_SECRET}"
+JWT_SECRET="\${JWT_SECRET_VALUE}"
 JWT_EXPIRES_IN="${jwtExpiresInParam.valueAsString}"
-JWT_REFRESH_SECRET="\${jwtRefreshSecretParam.valueAsString:-$JWT_REFRESH_SECRET}"
+JWT_REFRESH_SECRET="\${JWT_REFRESH_SECRET_VALUE}"
 JWT_REFRESH_EXPIRES_IN="${jwtRefreshExpiresInParam.valueAsString}"
 
 PORT=4000
 NODE_ENV="${nodeEnvParam.valueAsString}"
-CLIENT_URL="\${PUBLIC_URL}"
-FRONTEND_URL="\${PUBLIC_URL}"
-BACKEND_URL="\${PUBLIC_URL}"
+CLIENT_URL="${frontendUrlParam.valueAsString}"
+FRONTEND_URL="${frontendUrlParam.valueAsString}"
+BACKEND_URL="${backendUrlParam.valueAsString}"
 
 OPENAI_API_KEY="\${OPENAI_API_KEY_VALUE}"
 OPENAI_BASE_URL="${openAiBaseUrlParam.valueAsString}"
@@ -346,6 +357,14 @@ GROQ_API_KEY="${groqApiKeyParam.valueAsString}"
 
 JUDGE0_API_URL="${judge0ApiUrlParam.valueAsString}"
 JUDGE0_API_KEY=""
+JUDGE0_MEMORY_LIMIT_DEFAULT_KB="512000"
+JUDGE0_MEMORY_LIMIT_JS_KB="640000"
+JUDGE0_MEMORY_LIMIT_JAVA_KB="2097152"
+
+AZURE_TENANT_ID="${azureTenantIdParam.valueAsString}"
+AZURE_CLIENT_ID="${azureClientIdParam.valueAsString}"
+AZURE_CLIENT_SECRET="${azureClientSecretParam.valueAsString}"
+GRAPH_SENDER_EMAIL="${graphSenderEmailParam.valueAsString}"
 
 CLOUDINARY_CLOUD_NAME="${cloudinaryCloudNameParam.valueAsString}"
 CLOUDINARY_API_KEY="${cloudinaryApiKeyParam.valueAsString}"
@@ -361,20 +380,6 @@ SMTP_FROM="${smtpFromParam.valueAsString}"
 REDIS_URL="${redisUrlParam.valueAsString}"
 EOF
 
-# Create specialized frontend .env for build
-cat <<EOF > "$REPO_DIR/frontend/.env"
-VITE_API_BASE_URL="/api"
-VITE_BACKEND_URL=""
-VITE_APP_NAME="INDIUM"
-VITE_APP_VERSION="1.0.0"
-EOF
-
-# Build Frontend
-cd "$REPO_DIR/frontend"
-npm install
-npm run build
-cd "$WORKDIR"
-
 cat <<'EOF' > init-db.sql
 CREATE DATABASE indium_db;
 CREATE DATABASE judge0;
@@ -382,53 +387,116 @@ EOF
 
 cat <<'EOF' > backend.Dockerfile
 FROM node:20-alpine
-RUN apk --no-cache add postgresql-client openssl
+
+RUN apk --no-cache add postgresql-client
+RUN apk add --no-cache openssl
+
 WORKDIR /app
+
 COPY repo/backend/package*.json ./
 RUN npm ci
+
 COPY repo/backend ./
 RUN npx prisma generate
 RUN npm run build
+
 EXPOSE 4000
+# Wait for postgres, push schema, and start the compiled server.
 CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && node dist/src/index.js'
 EOF
 
 cat <<'EOF' > docker-compose.yml
 version: '3.8'
+
 services:
   postgres:
     image: postgres:13
     env_file: .env
     environment:
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
     restart: always
-    volumes: [ "postgres-data:/var/lib/postgresql/data", "./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro" ]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   redis:
     image: redis:6.0
     restart: always
-    volumes: [ "redis-data:/data" ]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   judge0-server:
     image: judge0/judge0:1.13.1
     env_file: .env
     environment:
+      PORT: 2358
       DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
-    ports: [ "2358:2358" ]
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: judge0
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEMORY_LIMIT: 524288
+      MAX_MEMORY_LIMIT: 2097152
+    ports:
+      - "2358:2358"
     restart: always
     privileged: true
+    depends_on:
+      - postgres
+      - redis
+
   judge0-worker:
     image: judge0/judge0:1.13.1
     command: ["./scripts/workers"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: judge0
+      POSTGRES_USER: \${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MEMORY_LIMIT: 524288
+      MAX_MEMORY_LIMIT: 2097152
     restart: always
     privileged: true
+    depends_on:
+      - postgres
+      - redis
+
   backend:
-    build: { context: ".", dockerfile: "backend.Dockerfile" }
+    build:
+      context: .
+      dockerfile: backend.Dockerfile
     env_file: .env
-    ports: [ "4000:4000" ]
+    environment:
+      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/indium_db
+    ports:
+      - "4000:4000"
     restart: always
-volumes: { postgres-data: {}, redis-data: {} }
+    depends_on:
+      - postgres
+      - judge0-server
+
+volumes:
+  postgres-data:
+  redis-data:
 EOF
 
 cat <<'EOF' > /etc/nginx/sites-available/default
@@ -437,14 +505,7 @@ server {
     listen [::]:80 default_server;
     server_name _;
 
-    root /home/ubuntu/coding-platform/repo/frontend/dist;
-    index index.html;
-
     location / {
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    location /api {
         proxy_pass http://127.0.0.1:4000;
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -452,35 +513,66 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
-
-    location /health {
-        proxy_pass http://127.0.0.1:4000;
-    }
-
-    location /docs {
-        proxy_pass http://127.0.0.1:4000;
-    }
-
-    location /openapi.json {
-        proxy_pass http://127.0.0.1:4000;
-    }
-
-    location /uploads {
-        proxy_pass http://127.0.0.1:4000;
-    }
-
-    location /downloads {
-        proxy_pass http://127.0.0.1:4000;
-    }
 }
 EOF
 
+systemctl enable nginx
 systemctl restart nginx
 
+chown -R ubuntu:ubuntu $WORKDIR
+cd $WORKDIR
+
 docker-compose up -d postgres redis
-sleep 10
+
+for i in $(seq 1 60); do
+  if docker-compose exec -T postgres pg_isready -U postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+
 docker-compose up -d judge0-server judge0-worker
+docker-compose rm -sf backend || true
 docker-compose up -d --build backend
+
+for i in $(seq 1 90); do
+  if curl -fsS http://127.0.0.1/health >/dev/null 2>&1; then
+    echo "Backend healthy via nginx"
+    break
+  fi
+  sleep 2
+done
+
+# Fail bootstrap if service is still unhealthy after retries.
+curl -fsS http://127.0.0.1/health >/dev/null
+`;
+
+    instance.addUserData(userDataScript);
+
+    // ----------------------------------------------------------------------
+    // Outputs
+    // ----------------------------------------------------------------------
+    new cdk.CfnOutput(this, 'InstancePublicIp', {
+      value: instance.instancePublicIp,
+      description: 'Public IP of the EC2 instance',
+    });
+
+    new cdk.CfnOutput(this, 'BackendUrlOutput', {
+      value: cdk.Fn.join('', ['http://', instance.instancePublicIp]),
+      description: 'Backend URL proxied through nginx',
+    });
+
+    new cdk.CfnOutput(this, 'InstanceId', {
+      value: instance.instanceId,
+      description: 'Instance ID',
+    });
+  }
+}
+
+const app = new cdk.App();
+const stackName = app.node.tryGetContext('stackName') || process.env.CDK_STACK_NAME || 'Ec2DeploymentStack';
+
+new Ec2SingleInstanceStack(app, stackName, { stackName });
 `;
 
     instance.addUserData(userDataScript);

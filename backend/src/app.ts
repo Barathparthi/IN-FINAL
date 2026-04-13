@@ -64,8 +64,13 @@ app.use('/docs', (req, res, next) => {
   next()
 }, apiReference({ url: '/openapi.json'}))
 
-app.use('/api/auth',       authLimiter, authRouter)
-app.use('/api',            apiLimiter)
+// Apply auth limiter to auth routes first
+app.use('/api/auth', authLimiter, authRouter)
+
+// Apply general rate limiter to all other /api routes before route handlers
+app.use('/api', apiLimiter)
+
+// Register API route handlers
 app.use('/api/admin',      adminRouter)
 app.use('/api/campaigns',  campaignRouter)
 app.use('/api/questions',  questionRouter)
