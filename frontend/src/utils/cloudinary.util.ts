@@ -1,13 +1,10 @@
 import { proctoringApi } from '../services/api.services'
-import { ENV } from '../config/env.config'
 
 export const uploadToCloudinary = async (file: File | Blob | string, folder: string = 'indium_uploads'): Promise<string> => {
   // 1. Get signature from backend
   const { signature, timestamp, apiKey, cloudName } = await proctoringApi.getCloudinarySignature({ folder })
 
-  // Use Cloud Name from ENV if defined, otherwise fallback to what backend said
-  const finalCloudName = ENV.CLOUDINARY_CLOUD_NAME || cloudName
-  const url = `https://api.cloudinary.com/v1_1/${finalCloudName}/auto/upload`
+  const url = `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`
 
   const formData = new FormData()
   formData.append('file', file)
