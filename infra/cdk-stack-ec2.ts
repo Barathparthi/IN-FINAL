@@ -302,6 +302,7 @@ if [ ! -d "$REPO_DIR/.git" ]; then
   git clone --branch "$REPO_BRANCH" --single-branch "$REPO_URL" "$REPO_DIR"
 else
   cd "$REPO_DIR"
+  git remote set-url origin "$REPO_URL"
   git fetch --all --prune
   git checkout "$REPO_BRANCH" || git checkout -b "$REPO_BRANCH" "origin/$REPO_BRANCH"
   git reset --hard "origin/$REPO_BRANCH"
@@ -402,7 +403,7 @@ RUN npm run build
 
 EXPOSE 4000
 # Wait for postgres, push schema, and start the compiled server.
-CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && node dist/src/index.js'
+CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && if [ -f dist/src/index.js ]; then node dist/src/index.js; else node dist/index.js; fi'
 EOF
 
 cat <<'EOF' > docker-compose.yml
