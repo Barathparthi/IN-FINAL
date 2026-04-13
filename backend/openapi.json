@@ -2224,6 +2224,42 @@
           }
         }
       }
+    },
+    "/api/ai/judge0/run": {
+      "post": {
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceCode": {
+                    "example": "any"
+                  },
+                  "language": {
+                    "example": "any"
+                  },
+                  "stdin": {
+                    "example": "any"
+                  },
+                  "testCases": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

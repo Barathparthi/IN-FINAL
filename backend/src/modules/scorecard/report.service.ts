@@ -173,7 +173,7 @@ export function generateReportPDF(data: ReportData): Readable {
      .text(data.campaign.role, 0, 36, { align: 'right', width: pw(doc) - MARGIN })
      
   if (data.campaign.hiringType) {
-    const typeLabel = (data.campaign.hiringType === 'CAMPUS' ? '🎓 CAMPUS HIRING' : '🏢 LATERAL HIRING')
+    const typeLabel = (data.campaign.hiringType === 'CAMPUS' ? 'CAMPUS HIRING' : 'LATERAL HIRING')
     doc.fillColor(ORANGE).fontSize(7).font('Helvetica-Bold')
        .text(typeLabel, 0, 50, { align: 'right', width: pw(doc) - MARGIN })
   }
@@ -372,27 +372,34 @@ export function generateReportPDF(data: ReportData): Readable {
     }
 
     // RESUME CLAIM VS INTERVIEW PERFORMANCE MISMATCH TABLE
-    const misY = doc.y
     pageCheck(doc, 80)
     sectionTitle(doc, 'Resume Claim vs Interview Performance')
-    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
-    doc.rect(MARGIN, doc.y, contentW(doc) / 2, 20).fill(NAVY)
-    doc.text('CLAIMED ON RESUME', MARGIN + 10, doc.y - 14)
-    doc.rect(MARGIN + contentW(doc) / 2, doc.y - 6, contentW(doc) / 2, 20).fill('#334155')
-    doc.text('INTERVIEW PERFORMANCE', MARGIN + contentW(doc) / 2 + 10, doc.y - 14)
-    doc.y += 10
-    
+
     const mismatchRows = gap.gaps?.slice(0, 3) || ['No specific gaps identified']
+    const hdrY = doc.y
+    const colW  = contentW(doc) / 2
+
+    // Header row
+    doc.rect(MARGIN,        hdrY, colW, 20).fill(NAVY)
+    doc.rect(MARGIN + colW, hdrY, colW, 20).fill('#334155')
+    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+       .text('CLAIMED ON RESUME',    MARGIN + 10,        hdrY + 6, { width: colW - 20 })
+    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+       .text('INTERVIEW PERFORMANCE', MARGIN + colW + 10, hdrY + 6, { width: colW - 20 })
+    doc.y = hdrY + 20
+
     for (const gapText of mismatchRows) {
       pageCheck(doc, 30)
       const rY = doc.y
-      doc.rect(MARGIN, rY, contentW(doc) / 2, 30).fill(LIGHT).stroke(BORDER)
-      doc.rect(MARGIN + contentW(doc) / 2, rY, contentW(doc) / 2, 30).fill(WHITE).stroke(BORDER)
-      doc.fillColor(DARK).fontSize(8).font('Helvetica').text('Implied proficiency', MARGIN + 10, rY + 8, { width: contentW(doc) / 2 - 20 })
-      doc.fillColor(RED).font('Helvetica-Bold').text(gapText, MARGIN + contentW(doc) / 2 + 10, rY + 8, { width: contentW(doc) / 2 - 20 })
+      doc.rect(MARGIN,        rY, colW, 30).fill(LIGHT).stroke(BORDER)
+      doc.rect(MARGIN + colW, rY, colW, 30).fill(WHITE).stroke(BORDER)
+      doc.fillColor(DARK).fontSize(8).font('Helvetica')
+         .text('Implied proficiency', MARGIN + 10, rY + 8, { width: colW - 20 })
+      doc.fillColor(RED).font('Helvetica-Bold')
+         .text(gapText, MARGIN + colW + 10, rY + 8, { width: colW - 20 })
       doc.y = rY + 30
     }
-    doc.moveDown(1)
+    doc.moveDown(0.8)
   }
 
   // CATEGORY PERFORMANCE BREAKDOWN
@@ -490,7 +497,7 @@ export function generateReportPDF(data: ReportData): Readable {
       // Lowest score banner
       if (ia === lowestAnswer && (ia.aiScore ?? 0) <= 5) {
         doc.rect(currentX, aY, 110, 14).fill('#FEF2F2').stroke(RED)
-        doc.fillColor(RED).fontSize(7).font('Helvetica-Bold').text('⚠ CRITICAL GAP', currentX, aY + 4, { width: 110, align: 'center' })
+        doc.fillColor(RED).fontSize(7).font('Helvetica-Bold').text('! CRITICAL GAP', currentX, aY + 4, { width: 110, align: 'center' })
       }
 
       doc.y = aY + 20
@@ -531,7 +538,7 @@ export function generateReportPDF(data: ReportData): Readable {
       if (isLiveCoding && ia.copiedCodeSignal) {
         doc.moveDown(0.5)
         doc.rect(MARGIN + 12, doc.y, contentW(doc) - 20, 20).fill('#FEF2F2').stroke(RED)
-        doc.fillColor(RED).fontSize(8).font('Helvetica-Bold').text('⚠ COPY-PASTE SIGNAL DETECTED — Candidate explanation mismatched submitted code', MARGIN + 18, doc.y + 6)
+        doc.fillColor(RED).fontSize(8).font('Helvetica-Bold').text('[!] COPY-PASTE SIGNAL DETECTED - Candidate explanation mismatched submitted code', MARGIN + 18, doc.y + 6)
         doc.y += 24
       }
 
@@ -583,7 +590,7 @@ export function generateReportPDF(data: ReportData): Readable {
       
       if (strike.screenshotUrl) {
         doc.fillColor(TEAL).fontSize(7.5).font('Helvetica-Bold')
-           .text('VIEW EVIDENCE ↗', MARGIN + 68, doc.y + 1, { 
+           .text('VIEW EVIDENCE [->]', MARGIN + 68, doc.y + 1, { 
              link: strike.screenshotUrl,
              underline: true 
            })
@@ -597,20 +604,26 @@ export function generateReportPDF(data: ReportData): Readable {
   if (data.scorecard.gapAnalysis?.resumeCredibilityReason) {
     pageCheck(doc, 70)
     sectionTitle(doc, 'Credibility Signals & Plagiarism')
-    
+
     // Copy/paste alert
     if (data.scorecard.gapAnalysis.copiedCodeDetected) {
-      doc.rect(MARGIN, doc.y, contentW(doc), 30).fill('#FEF2F2').stroke(RED)
-      doc.fillColor(RED).fontSize(9).font('Helvetica-Bold').text('⚠ AI COPY-PASTE SIGNALS DETECTED IN LIVE CODING', MARGIN + 10, doc.y - 18)
-      doc.y += 15
+      const alertY = doc.y
+      doc.rect(MARGIN, alertY, contentW(doc), 24).fill('#FEF2F2').stroke(RED)
+      doc.fillColor(RED).fontSize(9).font('Helvetica-Bold')
+         .text('[!] AI COPY-PASTE SIGNALS DETECTED IN LIVE CODING', MARGIN + 10, alertY + 7, { width: contentW(doc) - 20 })
+      doc.y = alertY + 30
     }
 
     const cred = data.scorecard.gapAnalysis.resumeCredibility
     const credColor = cred === 'HIGH' ? GREEN : cred === 'MEDIUM' ? AMBER : RED
-    doc.rect(MARGIN, doc.y, contentW(doc), 40).fill(LIGHT).stroke(BORDER)
-    doc.fillColor(credColor).fontSize(8).font('Helvetica-Bold').text(`RESUME CREDIBILITY: ${cred}`, MARGIN + 10, doc.y - 30)
-    doc.fillColor(DARK).fontSize(8.5).font('Helvetica').text(data.scorecard.gapAnalysis.resumeCredibilityReason, MARGIN + 10, doc.y + 4, { width: contentW(doc) - 20 })
-    doc.y += 20
+    const credY = doc.y
+    doc.fillColor(credColor).fontSize(8).font('Helvetica-Bold')
+       .text(`RESUME CREDIBILITY: ${cred}`, MARGIN, credY)
+    doc.moveDown(0.3)
+    doc.rect(MARGIN, doc.y, contentW(doc), 36).fill(LIGHT).stroke(BORDER)
+    doc.fillColor(DARK).fontSize(8.5).font('Helvetica')
+       .text(data.scorecard.gapAnalysis.resumeCredibilityReason, MARGIN + 10, doc.y + 8, { width: contentW(doc) - 20 })
+    doc.y += 44
   }
 
   // BEHAVIORAL PROFILE
@@ -625,10 +638,11 @@ export function generateReportPDF(data: ReportData): Readable {
     pageCheck(doc, 60)
     sectionTitle(doc, 'Recruiter Notes')
     if (data.scorecard.recruiterRating) {
-      doc.fillColor(ORANGE).fontSize(14).text('★'.repeat(data.scorecard.recruiterRating) + '☆'.repeat(5 - data.scorecard.recruiterRating), MARGIN, doc.y)
+      const stars = '*'.repeat(data.scorecard.recruiterRating) + '-'.repeat(5 - data.scorecard.recruiterRating)
+      doc.fillColor(ORANGE).fontSize(12).font('Helvetica-Bold').text(stars, MARGIN, doc.y)
       doc.moveDown(0.4)
     }
-    doc.fillColor(DARK).fontSize(9.5).text(data.scorecard.recruiterNotes, MARGIN, doc.y, { width: contentW(doc) })
+    doc.fillColor(DARK).fontSize(9.5).font('Helvetica').text(data.scorecard.recruiterNotes, MARGIN, doc.y, { width: contentW(doc) })
   }
 
   // ONBOARDING RECOMMENDATIONS
@@ -643,48 +657,73 @@ export function generateReportPDF(data: ReportData): Readable {
   }
 
   // HIRE / NO HIRE CHECKLIST
-  pageCheck(doc, 140)
+  pageCheck(doc, 160)
   sectionTitle(doc, 'Hire / No Hire Checklist')
-  
+
   const audioAnswersList = data.interviewPreviews.filter(p => p.mode === 'AUDIO')
-  const avgCommScore = audioAnswersList.length > 0 
-    ? audioAnswersList.reduce((s, a) => s + (a.communicationScore || 0), 0) / audioAnswersList.length 
+  const avgCommScore = audioAnswersList.length > 0
+    ? audioAnswersList.reduce((s, a) => s + (a.communicationScore || 0), 0) / audioAnswersList.length
     : 10
-    
+
   const checks = [
     { label: 'Technical fundamentals solid', passed: fitPct >= 65 },
-    { label: 'Communication clear', passed: avgCommScore >= 6.5 },
-    { label: 'Resume credible', passed: data.scorecard.gapAnalysis?.resumeCredibility !== 'LOW' },
-    { label: 'No proctoring violations', passed: strikes === 0 },
+    { label: 'Communication clear',          passed: avgCommScore >= 6.5 },
+    { label: 'Resume credible',              passed: data.scorecard.gapAnalysis?.resumeCredibility !== 'LOW' },
+    { label: 'No proctoring violations',     passed: strikes === 0 },
     { label: 'Behavioural answers specific', passed: true },
-    { label: 'Live coding genuine', passed: !data.scorecard.gapAnalysis?.copiedCodeDetected }
+    { label: 'Live coding genuine',          passed: !data.scorecard.gapAnalysis?.copiedCodeDetected }
   ]
-  
+
   const chkY = doc.y
   doc.rect(MARGIN, chkY, contentW(doc), 110).fill(LIGHT).stroke(BORDER)
   doc.rect(MARGIN, chkY, 4, 110).fill(NAVY)
-  
-  let leftY = chkY + 20
-  let rightY = chkY + 20
+
+  let leftY  = chkY + 18
+  let rightY = chkY + 18
   checks.forEach((chk, idx) => {
     const isLeft = idx < 3
     const cy = isLeft ? leftY : rightY
     const cx = isLeft ? MARGIN + 20 : MARGIN + contentW(doc) / 2 + 10
-    
-    doc.rect(cx, cy, 14, 14).fill(chk.passed ? GREEN : RED)
-    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold').text(chk.passed ? '✓' : '✗', cx, cy + 3, { width: 14, align: 'center' })
-    doc.fillColor(DARK).fontSize(9).font('Helvetica').text(chk.label, cx + 24, cy + 3)
-    
-    if (isLeft) leftY += 28
-    else rightY += 28
-  })
-  doc.y = Math.max(leftY, rightY) + 20
+    const mark      = chk.passed ? 'OK' : 'NO'
+    const markColor = chk.passed ? GREEN : RED
 
-  const range = (doc as any).bufferedPageRange()
-  for (let i = 0; i < range.count; i++) {
+    doc.rect(cx, cy, 20, 14).fill(markColor)
+    doc.fillColor(WHITE).fontSize(7).font('Helvetica-Bold')
+       .text(mark, cx, cy + 3, { width: 20, align: 'center' })
+    doc.fillColor(DARK).fontSize(9).font('Helvetica')
+       .text(chk.label, cx + 26, cy + 3, { width: contentW(doc) / 2 - 50 })
+
+    if (isLeft) leftY  += 28
+    else        rightY += 28
+  })
+  doc.y = Math.max(leftY, rightY) + 16
+
+  // ── Footer — one pass per buffered page ──────────────────────
+  // Rules:
+  //  1. Cache totalPages BEFORE the loop — never use range.count inside.
+  //  2. Use lineBreak:false so PDFKit never advances doc.y past the bottom.
+  //  3. Reset doc.y = MARGIN after each footer so switchToPage() never
+  //     sees an overflow state and inserts a blank page.
+  //  4. Manual x-centering via widthOfString() is more reliable than
+  //     align:'center' when drawing near the page bottom.
+  const range      = (doc as any).bufferedPageRange()
+  const totalPages = range.count
+  const footerName = `${data.candidate.firstName} ${data.candidate.lastName}`
+
+  for (let i = 0; i < totalPages; i++) {
     (doc as any).switchToPage(range.start + i)
-    doc.rect(0, ph(doc) - 28, pw(doc), 28).fill(NAVY)
-    doc.fillColor('#94A3B8').fontSize(7.5).text(`Indium AI  ·  Confidential  ·  ${data.candidate.firstName} ${data.candidate.lastName}  ·  Page ${i + 1} of ${range.count}`, 0, ph(doc) - 18, { align: 'center', width: pw(doc) })
+
+    const barY = ph(doc) - 28   // 28px navy bar anchored to page bottom
+    const txtY = barY + 10      // ~vertically centred for 7.5pt font
+
+    doc.rect(0, barY, pw(doc), 28).fill(NAVY)
+
+    doc.fontSize(7.5).font('Helvetica').fillColor('#94A3B8')
+    const footerText = `Indium AI  |  Confidential  |  ${footerName}  |  Page ${i + 1} of ${totalPages}`
+    const txtX = (pw(doc) - doc.widthOfString(footerText)) / 2
+    doc.text(footerText, txtX, txtY, { lineBreak: false })
+
+    doc.y = MARGIN  // prevent overflow state before next switchToPage()
   }
 
   doc.end()

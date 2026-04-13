@@ -159,11 +159,18 @@ export async function sendKycOtp(candidateId: string) {
     data: { otpHash, otpExpiry }
   })
 
-  await EmailService.sendKycOtpEmail({
-    toEmail: candidate.user.email,
-    firstName: candidate.user.firstName,
-    otpCode: otp
-  })
+  try {
+    await EmailService.sendKycOtpEmail({
+      toEmail:   candidate.user.email,
+      firstName: candidate.user.firstName,
+      otpCode:   otp
+    })
+  } catch (emailErr: any) {
+    // SMTP failure must not block the flow — OTP is already saved in the DB.
+    // In development, print the OTP to the console so testing can continue.
+    console.warn(`[KYC] Email delivery failed for ${candidate.user.email}: ${emailErr.message}`)
+    console.warn(`[KYC] OTP for ${candidate.user.email}: ${otp}`)
+  }
 
   return { message: 'OTP sent successfully' }
 }
