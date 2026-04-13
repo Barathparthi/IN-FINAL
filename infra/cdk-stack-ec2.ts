@@ -568,36 +568,3 @@ curl -fsS http://127.0.0.1/health >/dev/null
     });
   }
 }
-
-const app = new cdk.App();
-const stackName = app.node.tryGetContext('stackName') || process.env.CDK_STACK_NAME || 'Ec2DeploymentStack';
-
-new Ec2SingleInstanceStack(app, stackName, { stackName });
-`;
-
-    instance.addUserData(userDataScript);
-
-    // ----------------------------------------------------------------------
-    // Outputs
-    // ----------------------------------------------------------------------
-    new cdk.CfnOutput(this, 'InstancePublicIp', {
-      value: instance.instancePublicIp,
-      description: 'Public IP of the EC2 instance',
-    });
-
-    new cdk.CfnOutput(this, 'BackendUrlOutput', {
-      value: cdk.Fn.join('', ['http://', instance.instancePublicIp]),
-      description: 'Backend URL proxied through nginx',
-    });
-
-    new cdk.CfnOutput(this, 'InstanceId', {
-      value: instance.instanceId,
-      description: 'Instance ID',
-    });
-  }
-}
-
-const app = new cdk.App();
-const stackName = app.node.tryGetContext('stackName') || process.env.CDK_STACK_NAME || 'Ec2DeploymentStack';
-
-new Ec2SingleInstanceStack(app, stackName, { stackName });
