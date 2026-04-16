@@ -59,7 +59,7 @@
 //       strikeLog: candidate.strikeLog,
 //     })
 
-//     const filename = `smarthire_${candidate.user.firstName}_${candidate.user.lastName}_report.pdf`
+//     const filename = `indium_${candidate.user.firstName}_${candidate.user.lastName}_report.pdf`
 //       .replace(/\s+/g, '_').toLowerCase()
 
 //     res.setHeader('Content-Type', 'application/pdf')
@@ -88,7 +88,7 @@
 //       select: { name: true },
 //     })
 
-//     const filename = `smarthire_${campaign.name}_results.xlsx`
+//     const filename = `indium_${campaign.name}_results.xlsx`
 //       .replace(/\s+/g, '_').toLowerCase()
 
 //     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -216,6 +216,7 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
           testCasesPassed:  (ia as any).testCasesPassed,
           testCasesTotal:   (ia as any).testCasesTotal,
           copiedCodeSignal: (ia as any).copiedCodeSignal,
+          answerText:       (ia.textAnswer || ia.sttTranscript || ia.explainTranscript || '').slice(0, 3500),
           answerPreview:    (ia.textAnswer || ia.sttTranscript || '').slice(0, 200),
           aiScore:          ia.aiScore,
           aiReasoning:      ia.aiReasoning,
@@ -258,7 +259,7 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
       interviewPreviews,
     })
 
-    const filename = `smarthire_${candidate.user.firstName}_${candidate.user.lastName}_report.pdf`.replace(/\s+/g, '_').toLowerCase()
+    const filename = `indium_${candidate.user.firstName}_${candidate.user.lastName}_report.pdf`.replace(/\s+/g, '_').toLowerCase()
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     stream.pipe(res)
@@ -276,7 +277,7 @@ export async function exportExcel(req: Request, res: Response, next: NextFunctio
     const { generateCampaignExcel } = await import('./excel.service')
     const buffer   = await generateCampaignExcel(req.params.campaignId)
     const campaign = await prisma.campaign.findUniqueOrThrow({ where: { id: req.params.campaignId }, select: { name: true } })
-    const filename = `smarthire_${campaign.name}_results.xlsx`.replace(/\s+/g, '_').toLowerCase()
+    const filename = `indium_${campaign.name}_results.xlsx`.replace(/\s+/g, '_').toLowerCase()
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(buffer)

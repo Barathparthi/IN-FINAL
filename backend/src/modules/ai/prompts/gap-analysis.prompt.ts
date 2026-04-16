@@ -1,6 +1,7 @@
 export function gapAnalysisPrompt(input: {
   jobDescription:   string
   role:             string
+   hiringType?:      string
   resumeText:       string
   roundScores:      any[]
   strikeCount:      number
@@ -33,6 +34,9 @@ ${copiedSignals > 0 ? `⚠ ${copiedSignals} problem(s) showed evidence of AI-gen
 
   return `You are a senior technical recruiter producing a final evaluation report for a ${input.role} candidate.
 
+HIRING TRACK:
+${input.hiringType || 'LATERAL'}
+
 JOB DESCRIPTION:
 ${input.jobDescription}
 
@@ -52,6 +56,10 @@ Violations: ${input.strikeCount} out of max ${input.maxStrikes} strikes
 ${input.strikeCount >= input.maxStrikes ? '⚠ Session was terminated due to proctoring violations.' : input.strikeCount > 0 ? `⚠ ${input.strikeCount} proctoring violation(s) recorded.` : 'Clean session — no violations.'}
 
 INSTRUCTIONS FOR YOUR ANALYSIS:
+
+TRACK-SPECIFIC CALIBRATION:
+- If hiringType is CAMPUS: prioritize learning agility, fundamentals, communication clarity, and growth potential over years of ownership.
+- If hiringType is LATERAL: prioritize production depth, ownership, architecture trade-offs, and decision quality under ambiguity.
 
 1. TECHNICAL FIT % (0–100):
    - Base on actual assessment performance, not resume claims
@@ -74,6 +82,21 @@ INSTRUCTIONS FOR YOUR ANALYSIS:
 5. JD MISSING SKILLS:
    - Skills from JD the candidate is missing or underperformed on
 
+5A. JD PRIORITY SKILL SPLIT (new field):
+   - Split skills into mustHave, goodToHave, and niceToHave buckets.
+   - For each skill, return:
+     - skill
+     - status: MATCHED | PARTIAL | MISSING
+     - evidence: short evidence from resume/interview
+     - comment: concise recruiter-facing note
+
+5B. TECHNICAL SKILL MATRIX (new field):
+   - Return 5-8 role-relevant rows for a recruiter table:
+     - skill
+     - performanceScore (0-10)
+     - performanceLabel (EXCELLENT|GOOD|AVERAGE|WEAK)
+     - comment (what worked / what was weak)
+
 6. RESUME VS JD MATCH SCORE (new field):
    - Score out of 100 representing how well the candidate's resume itself aligns with the Job Description.
 
@@ -89,6 +112,13 @@ INSTRUCTIONS FOR YOUR ANALYSIS:
 9. BEHAVIORAL & COMMUNICATION PROFILE (new field):
    - Analyze the candidate's answers for soft skills (Clarity, Problem Solving, Resilience, Leadership).
    - Provide a 2-3 sentence summary of their communication style based on the transcripts.
+
+9A. BEHAVIORAL SCORE BREAKDOWN (new field):
+   - Provide numeric scores (0-10) for:
+     - communication
+     - confidence
+     - leadership (optional for CAMPUS if not enough signal)
+   - Add a short comment.
 
 10. AI SUMMARY (3-4 sentences for the recruiter):
    - Start with overall recommendation tone (Strong hire / Hire / Maybe / No hire)
@@ -115,11 +145,20 @@ Respond ONLY with valid JSON — no markdown:
   "gaps": ["specific gap with evidence", "specific gap with evidence"],
   "jdMatchedSkills": ["confirmed skill 1", "confirmed skill 2"],
   "jdMissingSkills": ["missing skill 1", "missing skill 2"],
+   "jdSkillSplit": {
+      "mustHave": [{"skill": "", "status": "MATCHED|PARTIAL|MISSING", "evidence": "", "comment": ""}],
+      "goodToHave": [{"skill": "", "status": "MATCHED|PARTIAL|MISSING", "evidence": "", "comment": ""}],
+      "niceToHave": [{"skill": "", "status": "MATCHED|PARTIAL|MISSING", "evidence": "", "comment": ""}]
+   },
+   "technicalSkillMatrix": [
+      {"skill": "", "performanceScore": 0, "performanceLabel": "EXCELLENT|GOOD|AVERAGE|WEAK", "comment": ""}
+   ],
   "resumeJDFitScore": <0-100>,
   "resumeEvaluationNotes": "Detailed paragraph evaluating resume vs JD...",
   "resumeCredibility": "HIGH|MEDIUM|LOW",
   "resumeCredibilityReason": "Specific explanation of consistency or red flags",
   "behavioralProfile": "Summary of soft skills and communication style...",
+   "behavioralScores": {"communication": 0, "confidence": 0, "leadership": 0, "comment": ""},
   "copiedCodeDetected": <true/false>,
   "aiSummary": "3-4 sentence executive summary with recommendation",
   "keyMoments": [

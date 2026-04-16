@@ -38,7 +38,7 @@ export const recruiterApi = {
   getMyCampaigns: () => api.get('/recruiter/campaigns').then(r => r.data),
   getCandidates: (campaignId: string) => api.get(`/recruiter/campaigns/${campaignId}/candidates`).then(r => r.data),
   getLiveMonitor: (campaignId: string) => api.get(`/recruiter/campaigns/${campaignId}/monitor`).then(r => r.data),
-  addCandidate: (campaignId: string, data: { firstName: string; lastName: string; email: string; phone?: string }) =>
+  addCandidate: (campaignId: string, data: { firstName: string; lastName: string; email: string; phone?: string; confirmExistingCampaignCandidate?: boolean }) =>
     api.post(`/recruiter/campaigns/${campaignId}/candidates`, data).then(r => r.data),
   addBulkCandidates: (campaignId: string, candidates: { firstName: string; lastName: string; email: string; phone?: string }[]) =>
     api.post(`/recruiter/campaigns/${campaignId}/candidates/bulk`, { candidates }).then(r => r.data),
@@ -148,6 +148,7 @@ export const attemptApi = {
     attemptId: string, 
     questionId: string, 
     mode: 'TEXT' | 'AUDIO', 
+    askedPrompt?: string,
     textAnswer?: string, 
     audioUrl?: string, 
     sttTranscript?: string,

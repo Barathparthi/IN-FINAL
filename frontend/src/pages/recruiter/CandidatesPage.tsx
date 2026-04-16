@@ -44,20 +44,51 @@ function AddCandidateModal({
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '' })
   const [loading, setLoading] = useState(false)
 
+  const submitCandidate = (confirmExistingCampaignCandidate = false) =>
+    recruiterApi.addCandidate(campaignId, {
+      ...form,
+      confirmExistingCampaignCandidate,
+    })
+
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.firstName || !form.lastName || !form.email) {
       toast.error('First name, last name and email are required')
       return
     }
-    setLoading(true)
-    try {
-      await recruiterApi.addCandidate(campaignId, form)
+
+    const finalizeSuccess = () => {
       toast.success(`${form.firstName} ${form.lastName} added successfully!`)
       onSuccess()
       onClose()
+    }
+
+    setLoading(true)
+    try {
+      await submitCandidate(false)
+      finalizeSuccess()
     } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to add candidate')
+      const code = err?.response?.data?.code
+      const message = err?.response?.data?.message || 'Failed to add candidate'
+
+      if (code === 'CANDIDATE_EXISTS_IN_OTHER_CAMPAIGN') {
+        const proceed = window.confirm(
+          `${message}\n\nDo you want to add this candidate to the current campaign as well?`,
+        )
+
+        if (proceed) {
+          try {
+            await submitCandidate(true)
+            finalizeSuccess()
+            return
+          } catch (confirmErr: any) {
+            toast.error(confirmErr?.response?.data?.message || 'Failed to add candidate')
+            return
+          }
+        }
+      }
+
+      toast.error(message)
     } finally {
       setLoading(false)
     }

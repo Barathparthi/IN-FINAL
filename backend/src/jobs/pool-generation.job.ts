@@ -3,6 +3,46 @@ import { prisma }              from '../lib/prisma'
 import { generateMCQs, generateCodingProblems, generateInterviewPrompts } from '../modules/ai/ai.service'
 import { logger } from '../lib/logger'
 
+const OPTION_IDS = ['A', 'B', 'C', 'D']
+
+function shuffle<T>(arr: T[]): T[] {
+  return [...arr].sort(() => Math.random() - 0.5)
+}
+
+function normalizeMcqOptions(options: any[]): any[] {
+  const raw = Array.isArray(options) ? options : []
+  const cleaned = raw
+    .map((opt: any, idx: number) => ({
+      id: OPTION_IDS[idx] || String(idx + 1),
+      text: String(opt?.text || '').trim(),
+      isCorrect: !!opt?.isCorrect,
+    }))
+    .filter((opt: any) => opt.text.length > 0)
+
+  if (cleaned.length < 2) return cleaned
+
+  let correctIndex = cleaned.findIndex((opt: any) => opt.isCorrect)
+  if (correctIndex < 0) correctIndex = Math.floor(Math.random() * cleaned.length)
+  cleaned.forEach((opt: any, idx: number) => {
+    opt.isCorrect = idx === correctIndex
+  })
+
+  const randomized = shuffle(cleaned)
+  return randomized.map((opt: any, idx: number) => ({
+    id: OPTION_IDS[idx] || String(idx + 1),
+    text: opt.text,
+    isCorrect: opt.isCorrect,
+  }))
+}
+
+function sanitizeQuestion(q: any) {
+  if ((q?.type || 'MCQ') !== 'MCQ') return q
+  return {
+    ...q,
+    options: normalizeMcqOptions(q.options),
+  }
+}
+
 poolGenerationQueue.process('generate', async (job) => {
   const { campaignId } = job.data
   logger.info(`[PoolGen] Starting for campaign ${campaignId}`)
@@ -55,8 +95,9 @@ poolGenerationQueue.process('generate', async (job) => {
     await prisma.question.deleteMany({ where: { poolId: pool.id } })
 
     if (questions.length > 0) {
+      const normalizedQuestions = questions.map(sanitizeQuestion)
       await prisma.question.createMany({
-        data: questions.map((q: any, i: number) => ({
+        data: normalizedQuestions.map((q: any, i: number) => ({
           poolId:              pool.id,
           type:                q.type === 'INTERVIEW' ? 'INTERVIEW_PROMPT' : (q.type || 'INTERVIEW_PROMPT'),
           difficulty:          q.difficulty,

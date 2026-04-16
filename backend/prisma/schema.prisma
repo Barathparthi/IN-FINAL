@@ -22,7 +22,7 @@ model User {
   otpHash            String?
   otpExpiry          DateTime?
   adminProfile       AdminProfile?
-  candidateProfile   CandidateProfile?
+  candidateProfile   CandidateProfile[]
   jwtBlacklist       JWTBlacklist[]
   recruiterProfile   RecruiterProfile?
   refreshTokens      RefreshToken[]
@@ -49,7 +49,7 @@ model RecruiterProfile {
 
 model CandidateProfile {
   id                 String             @id @default(uuid())
-  userId             String             @unique
+  userId             String
   phone              String?
   resumeUrl          String?
   resumeText         String?
@@ -74,6 +74,7 @@ model CandidateProfile {
 
   @@index([campaignId])
   @@index([status])
+  @@unique([userId, campaignId])
 }
 
 model JWTBlacklist {

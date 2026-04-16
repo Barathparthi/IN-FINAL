@@ -32,11 +32,10 @@ export async function handleRoundCompletion(params: {
   const nextRound = campaign.rounds.find(r => r.order === currentRound.order + 1)
   const isLastRound = !nextRound
 
-  // ── HOLD FOR REVIEW (Lateral Hiring or MCQ) ───────────────────
-  // Lateral hiring always requires manual review for all rounds.
-  // Standard hiring requires manual review specifically for MCQ rounds.
-  const isLateral = (campaign as any).hiringType === 'LATERAL'
-  const shouldHold = isLateral || currentRound.roundType === 'MCQ'
+  // Optional explicit hold-for-review mode (disabled by default).
+  // This keeps standard failAction behavior as the source of truth.
+  const roundCfg = (currentRound.roundConfig as any) || {}
+  const shouldHold = roundCfg.forceManualReview === true
 
   if (shouldHold) {
     const attempt = await prisma.candidateAttempt.findFirst({

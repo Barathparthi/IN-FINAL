@@ -14,18 +14,34 @@ const LC_LANG_OPTIONS = [
   { value: 'cpp',        label: 'C++'        },
 ]
 
-const MAX_RECORD_SECONDS  = 60
-const WARN_RECORD_SECONDS = 50
+const MAX_RECORD_SECONDS  = 90
+const WARN_RECORD_SECONDS = 75
 const MIN_ANSWER_SECONDS  = 10
 const FILLER_WORDS = ['um','uh','like','you know','basically','literally','actually','so','right','okay','er','hmm']
+
+type BrowserWindow = Window & {
+  SpeechRecognition?: new () => any
+  webkitSpeechRecognition?: new () => any
+}
 
 function speakText(text: string, onEnd?: () => void) {
   if (!window.speechSynthesis) { onEnd?.(); return }
   window.speechSynthesis.cancel()
   const utt = new SpeechSynthesisUtterance(text)
-  utt.rate = 0.92; utt.pitch = 1.0; utt.volume = 1.0; utt.lang = 'en-US'
-  if (onEnd) utt.onend = onEnd
-  const preferred = window.speechSynthesis.getVoices().find(v => /Google|Natural|Neural|Samantha/i.test(v.name))
+  utt.rate = 0.92; utt.pitch = 1.0; utt.volume = 1.0; utt.lang = 'en'
+  if (onEnd) {
+    let called = false
+    const done = () => {
+      if (called) return
+      called = true
+      onEnd()
+    }
+    utt.onend = done
+    utt.onerror = done
+  }
+  const voices = window.speechSynthesis.getVoices()
+  const englishVoices = voices.filter(v => /^en(-|$)/i.test(v.lang))
+  const preferred = englishVoices.find(v => /Google|Natural|Neural|Samantha|Microsoft|Aria|Jenny|Guy|Daniel/i.test(v.name)) || englishVoices[0]
   if (preferred) utt.voice = preferred
   window.speechSynthesis.speak(utt)
 }
@@ -50,6 +66,8 @@ export default function InterviewRound() {
   const [audioBlob, setAudioBlob]         = useState<Blob | null>(null)
   const [audioDuration, setAudioDuration] = useState(0)
   const [showTimeWarn, setShowTimeWarn]   = useState(false)
+  const [sttTranscript, setSttTranscript] = useState('')
+  const supportsSpeechRecognition = typeof window !== 'undefined' && !!((window as BrowserWindow).SpeechRecognition || (window as BrowserWindow).webkitSpeechRecognition)
 
   // ── Inline live coding state ────────────────────────────────
   const [lcPhase, setLcPhase]             = useState<'code' | 'explain' | null>(null)
@@ -59,6 +77,7 @@ export default function InterviewRound() {
   const [lcExplanation, setLcExplanation] = useState('')
   const [lcCodeScore, setLcCodeScore]     = useState<number | null>(null)
   const [lcExplanationPrompt, setLcExplanationPrompt] = useState('')
+  const [lcActiveFollowUp, setLcActiveFollowUp] = useState<string | null>(null)
   const [lcSubmitting, setLcSubmitting]   = useState(false)
   const [lcRunning, setLcRunning]         = useState(false)
   const [lcTestResults, setLcTestResults] = useState<any[] | null>(null)
@@ -66,9 +85,13 @@ export default function InterviewRound() {
   const [lcAudioBlob, setLcAudioBlob]     = useState<Blob | null>(null)
   const [lcAudioDuration, setLcAudioDuration] = useState(0)
   const [lcIsRecording, setLcIsRecording] = useState(false)
+  const [lcSttTranscript, setLcSttTranscript] = useState('')
   const lcChunksRef   = useRef<Blob[]>([])
   const lcRecorderRef = useRef<MediaRecorder | null>(null)
   const lcTimerRef    = useRef<ReturnType<typeof setInterval> | null>(null)
+  const lcSpeechRecognitionRef = useRef<any>(null)
+  const lcSttFinalTranscriptRef = useRef('')
+  const lcIsRecordingRef = useRef(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef        = useRef<Blob[]>([])
@@ -76,47 +99,180 @@ export default function InterviewRound() {
   const autoStopRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ttsTimerRef      = useRef<ReturnType<typeof setTimeout> | null>(null)
   const streamRef        = useRef<MediaStream | null>(null)
+  const recordingStartedAtRef = useRef<number | null>(null)
+  const audioDurationRef = useRef(0)
+  const isRecordingRef = useRef(false)
+  const autoSubmitOnStopRef = useRef(false)
+  const speechRecognitionRef = useRef<any>(null)
+  const sttFinalTranscriptRef = useRef('')
+
+  const stopSpeechToText = useCallback(() => {
+    const recognition = speechRecognitionRef.current
+    if (!recognition) return
+    try {
+      recognition.onend = null
+      recognition.stop()
+    } catch {
+      // Ignore stop errors from browsers that already ended recognition.
+    }
+    speechRecognitionRef.current = null
+  }, [])
+
+  const startSpeechToText = useCallback(() => {
+    if (!supportsSpeechRecognition) return
+    stopSpeechToText()
+
+    const SpeechRecognitionCtor = (window as BrowserWindow).SpeechRecognition || (window as BrowserWindow).webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) return
+
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = 'en-US'
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      let finalChunk = ''
+      let interimChunk = ''
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const item = event.results[i]
+        const spoken = item?.[0]?.transcript?.trim()
+        if (!spoken) continue
+        if (item.isFinal) finalChunk += `${spoken} `
+        else interimChunk += `${spoken} `
+      }
+      if (finalChunk) {
+        sttFinalTranscriptRef.current = `${sttFinalTranscriptRef.current} ${finalChunk}`.trim()
+      }
+      const merged = `${sttFinalTranscriptRef.current} ${interimChunk}`.trim()
+      setSttTranscript(merged)
+    }
+    recognition.onerror = (event: any) => {
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        toast.error('Speech-to-text blocked. You can still type the transcript manually.')
+      }
+    }
+    recognition.onend = () => {
+      if (isRecordingRef.current && speechRecognitionRef.current === recognition) {
+        try { recognition.start() } catch { /* noop */ }
+      }
+    }
+
+    speechRecognitionRef.current = recognition
+    try { recognition.start() } catch { /* noop */ }
+  }, [stopSpeechToText, supportsSpeechRecognition])
+
+  const stopLcSpeechToText = useCallback(() => {
+    const recognition = lcSpeechRecognitionRef.current
+    if (!recognition) return
+    try {
+      recognition.onend = null
+      recognition.stop()
+    } catch {
+      // Ignore stop errors when the recognition session has already ended.
+    }
+    lcSpeechRecognitionRef.current = null
+  }, [])
+
+  const startLcSpeechToText = useCallback(() => {
+    if (!supportsSpeechRecognition) return
+    stopLcSpeechToText()
+
+    const SpeechRecognitionCtor = (window as BrowserWindow).SpeechRecognition || (window as BrowserWindow).webkitSpeechRecognition
+    if (!SpeechRecognitionCtor) return
+
+    const recognition = new SpeechRecognitionCtor()
+    recognition.lang = 'en-US'
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      let finalChunk = ''
+      let interimChunk = ''
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const item = event.results[i]
+        const spoken = item?.[0]?.transcript?.trim()
+        if (!spoken) continue
+        if (item.isFinal) finalChunk += `${spoken} `
+        else interimChunk += `${spoken} `
+      }
+      if (finalChunk) {
+        lcSttFinalTranscriptRef.current = `${lcSttFinalTranscriptRef.current} ${finalChunk}`.trim()
+      }
+      const merged = `${lcSttFinalTranscriptRef.current} ${interimChunk}`.trim()
+      setLcSttTranscript(merged)
+    }
+    recognition.onerror = (event: any) => {
+      if (event?.error === 'not-allowed' || event?.error === 'service-not-allowed') {
+        toast.error('Speech-to-text blocked. You can still type the explanation transcript manually.')
+      }
+    }
+    recognition.onend = () => {
+      if (lcIsRecordingRef.current && lcSpeechRecognitionRef.current === recognition) {
+        try { recognition.start() } catch { /* noop */ }
+      }
+    }
+
+    lcSpeechRecognitionRef.current = recognition
+    try { recognition.start() } catch { /* noop */ }
+  }, [stopLcSpeechToText, supportsSpeechRecognition])
 
   useEffect(() => {
     startAttempt()
-    return () => { stopSpeaking(); stopRecording(); clearTimers() }
+    return () => { stopSpeaking(); stopRecording(); stopLcRecording(); stopLcSpeechToText(); clearTimers() }
   }, [roundId])
 
   // Auto-dictate + auto-start recording when question changes
- useEffect(() => {
-  if (loading || questions.length === 0) return
-  const q = questions[currentIndex]
-  const textToSpeak = activeFollowUp || q?.prompt
-  if (!textToSpeak) return
+  useEffect(() => {
+    if (loading || questions.length === 0) return
+    const q = questions[currentIndex]
+    const textToSpeak = activeFollowUp || q?.prompt
+    if (!textToSpeak) return
 
-  // For live coding questions in a mixed round, don't auto-record
-  const isLcQuestion = !!q?.liveCodingProblem
-  const isAudioMode = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
-  const shouldAutoRecord = isAudioMode && !isLcQuestion
+    // For live coding questions in a mixed round, don't auto-record
+    const isLcQuestion = !!q?.liveCodingProblem
+    const isAudioMode = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
+    const shouldAutoRecord = isAudioMode && !isLcQuestion
 
-  clearTimers()
-  setAudioBlob(null); setAudioDuration(0); setShowTimeWarn(false); setIsSpeaking(true)
+    clearTimers()
+    autoSubmitOnStopRef.current = false
+    audioDurationRef.current = 0
+    sttFinalTranscriptRef.current = ''
+    setSttTranscript('')
+    setAudioBlob(null)
+    setAudioDuration(0)
+    setShowTimeWarn(false)
+    setIsSpeaking(true)
 
-  const onTTSEnd = () => {
-    setIsSpeaking(false)
-    if (shouldAutoRecord) {
-      ttsTimerRef.current = setTimeout(() => startRecording(), 800)
+    const onTTSEnd = () => {
+      setIsSpeaking(false)
+      if (shouldAutoRecord) {
+        ttsTimerRef.current = setTimeout(() => startRecording(), 800)
+      }
     }
-  }
-  speakText(textToSpeak, onTTSEnd)
+    speakText(textToSpeak, onTTSEnd)
 
-  if (shouldAutoRecord) {
-    const fallbackMs = (textToSpeak.length / 12) * 1000 + 4000
-    ttsTimerRef.current = setTimeout(() => {
-      stopSpeaking(); setIsSpeaking(false); startRecording()
-    }, fallbackMs)
-  }
-}, [currentIndex, loading, questions, interviewMode, activeFollowUp])
+    if (shouldAutoRecord) {
+      const fallbackMs = (textToSpeak.length / 12) * 1000 + 4000
+      ttsTimerRef.current = setTimeout(() => {
+        stopSpeaking()
+        setIsSpeaking(false)
+        startRecording()
+      }, fallbackMs)
+    }
+  }, [currentIndex, loading, questions, interviewMode, activeFollowUp])
 
   function clearTimers() {
-    if (ttsTimerRef.current)   clearTimeout(ttsTimerRef.current)
-    if (autoStopRef.current)   clearTimeout(autoStopRef.current)
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current)
+    if (ttsTimerRef.current) {
+      clearTimeout(ttsTimerRef.current)
+      ttsTimerRef.current = null
+    }
+    if (autoStopRef.current) {
+      clearTimeout(autoStopRef.current)
+      autoStopRef.current = null
+    }
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current)
+      durationTimerRef.current = null
+    }
+    stopSpeechToText()
   }
 
   const startAttempt = async () => {
@@ -150,11 +306,18 @@ export default function InterviewRound() {
 
   const handleReplay = () => {
     if (isRecording) stopRecording()
-    setAudioBlob(null); clearTimers(); setIsSpeaking(true)
+    autoSubmitOnStopRef.current = false
+    audioDurationRef.current = 0
+    sttFinalTranscriptRef.current = ''
+    setSttTranscript('')
+    setAudioBlob(null)
+    clearTimers()
+    setIsSpeaking(true)
     const q = questions[currentIndex]
+    const textToSpeak = activeFollowUp || q.prompt
     const isAudioMode = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
     const isLcQuestion = !!q?.liveCodingProblem
-    speakText(q.prompt, () => {
+    speakText(textToSpeak, () => {
       setIsSpeaking(false)
       if (isAudioMode && !isLcQuestion) ttsTimerRef.current = setTimeout(() => startRecording(), 800)
     })
@@ -169,8 +332,13 @@ export default function InterviewRound() {
   }
 
   const startRecording = async () => {
-    if (isRecording) return
+    if (isRecordingRef.current || submitting) return
+    isRecordingRef.current = true
     try {
+      if (ttsTimerRef.current) {
+        clearTimeout(ttsTimerRef.current)
+        ttsTimerRef.current = null
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
       chunksRef.current = []
@@ -178,29 +346,82 @@ export default function InterviewRound() {
       mediaRecorderRef.current = recorder
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
       recorder.onstop = () => {
-        setAudioBlob(new Blob(chunksRef.current, { type: 'audio/webm' }))
+        const elapsedFromClock = recordingStartedAtRef.current
+          ? Math.max(0, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000))
+          : 0
+        const finalDuration = Math.min(MAX_RECORD_SECONDS, Math.max(audioDurationRef.current, elapsedFromClock))
+        audioDurationRef.current = finalDuration
+        setAudioDuration(finalDuration)
+
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setAudioBlob(blob)
+        stopSpeechToText()
         stream.getTracks().forEach(t => t.stop())
+        streamRef.current = null
+
+        if (autoSubmitOnStopRef.current) {
+          autoSubmitOnStopRef.current = false
+          void submitCurrentAnswer({ forcedAudioBlob: blob, forcedAudioDuration: finalDuration, fromAutoTimeout: true })
+        }
       }
       recorder.start(250)
-      setIsRecording(true); setAudioDuration(0); setShowTimeWarn(false)
+      recordingStartedAtRef.current = Date.now()
+      audioDurationRef.current = 0
+      setAudioBlob(null)
+      setIsRecording(true)
+      setAudioDuration(0)
+      setShowTimeWarn(false)
+      setSttTranscript('')
+      sttFinalTranscriptRef.current = ''
+
       durationTimerRef.current = setInterval(() => {
-        setAudioDuration(d => { if (d + 1 >= WARN_RECORD_SECONDS) setShowTimeWarn(true); return d + 1 })
-      }, 1000)
+        if (!recordingStartedAtRef.current) return
+        const elapsed = Math.min(MAX_RECORD_SECONDS, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000))
+        audioDurationRef.current = elapsed
+        setAudioDuration(prev => (prev === elapsed ? prev : elapsed))
+        setShowTimeWarn(elapsed >= WARN_RECORD_SECONDS)
+      }, 250)
+
+      startSpeechToText()
+
       autoStopRef.current = setTimeout(() => {
-        toast('Max recording time reached — stopping.', { icon: '⏱' }); stopRecording()
+        autoSubmitOnStopRef.current = true
+        toast('90 seconds completed. Submitting your answer...', { icon: '⏱' })
+        stopRecording()
       }, MAX_RECORD_SECONDS * 1000)
     } catch {
+      isRecordingRef.current = false
+      recordingStartedAtRef.current = null
+      setIsRecording(false)
       toast.error('Microphone access denied. Please allow mic access.')
     }
   }
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
-    streamRef.current?.getTracks().forEach(t => t.stop())
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current)
-    if (autoStopRef.current) clearTimeout(autoStopRef.current)
-    setIsRecording(false); setShowTimeWarn(false)
-  }, [])
+    else streamRef.current?.getTracks().forEach(t => t.stop())
+
+    const elapsedOnStop = recordingStartedAtRef.current
+      ? Math.min(MAX_RECORD_SECONDS, Math.max(0, Math.floor((Date.now() - recordingStartedAtRef.current) / 1000)))
+      : audioDurationRef.current
+    audioDurationRef.current = elapsedOnStop
+    setAudioDuration(elapsedOnStop)
+
+    isRecordingRef.current = false
+    recordingStartedAtRef.current = null
+    stopSpeechToText()
+
+    if (durationTimerRef.current) {
+      clearInterval(durationTimerRef.current)
+      durationTimerRef.current = null
+    }
+    if (autoStopRef.current) {
+      clearTimeout(autoStopRef.current)
+      autoStopRef.current = null
+    }
+    setIsRecording(false)
+    setShowTimeWarn(false)
+  }, [stopSpeechToText])
 
   const formatDuration = (secs: number) => {
     const m = Math.floor(secs / 60).toString().padStart(2, '0')
@@ -243,9 +464,18 @@ export default function InterviewRound() {
 
  // ── Inline live coding helpers ───────────────────────────────
   const resetLcState = () => {
+      lcIsRecordingRef.current = false
+      stopLcSpeechToText()
+      if (lcTimerRef.current) {
+        clearInterval(lcTimerRef.current)
+        lcTimerRef.current = null
+      }
     setLcPhase(null); setLcCode(''); setLcAnswerId(''); setLcExplanation('')
     setLcCodeScore(null); setLcExplanationPrompt(''); setLcTestResults(null)
     setLcAudioBlob(null); setLcAudioDuration(0); setLcIsRecording(false)
+     setLcActiveFollowUp(null)
+     setLcSttTranscript('')
+     lcSttFinalTranscriptRef.current = ''
   }
 
   const handleLcRunCode = async () => {
@@ -274,6 +504,9 @@ export default function InterviewRound() {
       setLcAnswerId(res.answerId)
       setLcCodeScore(res.codeScore)
       setLcExplanationPrompt(res.explanationPrompt)
+      setLcActiveFollowUp(null)
+      setLcSttTranscript('')
+      lcSttFinalTranscriptRef.current = ''
       setLcPhase('explain')
     } catch { toast.error('Failed to submit code') }
     finally { setLcSubmitting(false) }
@@ -283,19 +516,33 @@ export default function InterviewRound() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       lcChunksRef.current = []
+      lcSttFinalTranscriptRef.current = ''
+      setLcSttTranscript('')
+      setLcAudioBlob(null)
       const mr = new MediaRecorder(stream, { mimeType: 'audio/webm' })
       lcRecorderRef.current = mr
       mr.ondataavailable = e => { if (e.data.size > 0) lcChunksRef.current.push(e.data) }
-      mr.onstop = () => { setLcAudioBlob(new Blob(lcChunksRef.current, { type: 'audio/webm' })); stream.getTracks().forEach(t => t.stop()) }
+      mr.onstop = () => {
+        setLcAudioBlob(new Blob(lcChunksRef.current, { type: 'audio/webm' }))
+        stopLcSpeechToText()
+        stream.getTracks().forEach(t => t.stop())
+      }
       mr.start(250)
+      lcIsRecordingRef.current = true
       setLcIsRecording(true); setLcAudioDuration(0)
       lcTimerRef.current = setInterval(() => setLcAudioDuration(d => d + 1), 1000)
+      startLcSpeechToText()
     } catch { toast.error('Microphone access denied') }
   }
 
   const stopLcRecording = () => {
     if (lcRecorderRef.current?.state === 'recording') lcRecorderRef.current.stop()
-    if (lcTimerRef.current) clearInterval(lcTimerRef.current)
+    lcIsRecordingRef.current = false
+    stopLcSpeechToText()
+    if (lcTimerRef.current) {
+      clearInterval(lcTimerRef.current)
+      lcTimerRef.current = null
+    }
     setLcIsRecording(false)
   }
 
@@ -304,27 +551,44 @@ export default function InterviewRound() {
     setLcSubmitting(true)
     try {
       const isAudioExplain = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
+      let res: any
       if (isAudioExplain) {
         // Audio explanation — send as multipart
         if (!lcAudioBlob) { toast.error('Please record your explanation.'); setLcSubmitting(false); return }
+        const verifiedLcTranscript = lcSttTranscript.trim()
         const fd = new FormData()
         fd.append('attemptId', attempt.id)
         fd.append('answerId', lcAnswerId)
         fd.append('questionId', q.id)
+        if (lcActiveFollowUp) fd.append('askedPrompt', lcActiveFollowUp)
+        fd.append('sttTranscript', verifiedLcTranscript)
         fd.append('audio', lcAudioBlob, 'explanation.webm')
-        await attemptApi.submitLiveCodingExplain(fd)
+        res = await attemptApi.submitLiveCodingExplain(fd)
       } else {
         // Text explanation — evaluate via normal interview answer endpoint
         if (!lcExplanation.trim() || lcExplanation.trim().split(/\s+/).length < 10) {
           toast.error('Please write at least 10 words explaining your solution.'); setLcSubmitting(false); return
         }
-        await attemptApi.submitInterview({
+        res = await attemptApi.submitInterview({
           attemptId: attempt.id, questionId: q.id,
           mode: 'TEXT',
+          askedPrompt: lcActiveFollowUp || undefined,
           textAnswer: lcExplanation,
           timeTakenSeconds: 0,
         })
       }
+
+      if (res?.followUp && !lcActiveFollowUp) {
+        toast('Follow-up question!', { icon: '💬' })
+        setLcActiveFollowUp(res.followUp)
+        setLcExplanation('')
+        setLcAudioBlob(null)
+        setLcAudioDuration(0)
+        setLcSttTranscript('')
+        lcSttFinalTranscriptRef.current = ''
+        return
+      }
+
       // Advance to next question
       resetLcState()
       if (currentIndex < questions.length - 1) {
@@ -339,87 +603,124 @@ export default function InterviewRound() {
     finally { setLcSubmitting(false) }
   }
 
- const handleNext = async () => {
-  const qId = questions[currentIndex].id
-  const isLcQuestion = !!questions[currentIndex]?.liveCodingProblem
+  async function submitCurrentAnswer(options?: { forcedAudioBlob?: Blob; forcedAudioDuration?: number; fromAutoTimeout?: boolean }) {
+    if (submitting || !attempt) return
 
-  // If this is a live coding question in a mixed round, the LC submit flow handles it — not handleNext
-  if (isLcQuestion && lcPhase !== null) {
-    toast('Please submit your code and explanation using the buttons above.', { icon: '💡' })
-    return
-  }
+    const q = questions[currentIndex]
+    if (!q) return
 
-  const isTextMode = interviewMode === 'TEXT' || interviewMode === 'TEXT_LIVE_CODING'
-  const isAudioMode = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
+    const qId = q.id
+    const isLcQuestion = !!q.liveCodingProblem
 
-  if (isTextMode) {
-    if (!answers[qId]?.trim()) { toast.error('Please type your answer.'); return }
-    if (answers[qId].trim().split(/\s+/).length < 10) { toast.error('Min 10 words required.'); return }
-  }
-  if (isAudioMode) {
-    if (isRecording) stopRecording()
-    if (!audioBlob) { toast.error('Please record your answer.'); return }
-  }
-
-  stopSpeaking(); setSubmitting(true)
-
-  try {
-    let res: any
-    const isTextMode = interviewMode === 'TEXT' || interviewMode === 'TEXT_LIVE_CODING'
-
-    if (isTextMode) {
-      res = await attemptApi.submitInterview({
-        attemptId: attempt.id, questionId: qId,
-        mode: 'TEXT', textAnswer: answers[qId], timeTakenSeconds: 0
-      })
-    } else {
-      const metrics = computeDeliveryMetrics('', audioDuration)
-      const fd = new FormData()
-      fd.append('attemptId', attempt.id)
-      fd.append('questionId', qId)
-      fd.append('mode', 'AUDIO')
-      fd.append('timeTakenSeconds', String(audioDuration))
-      fd.append('durationSeconds',  String(audioDuration))
-      fd.append('speechDuration',   String(metrics.speechDuration))
-      fd.append('silenceRatio',     String(metrics.silenceRatio))
-      fd.append('wordsPerMinute',   String(metrics.wordsPerMinute))
-      fd.append('wordCount',        String(metrics.wordCount))
-      fd.append('fillerWordCount',  String(metrics.fillerWordCount))
-      fd.append('fillerWordRatio',  String(metrics.fillerWordRatio))
-      fd.append('deliveryScore',    String(metrics.deliveryScore))
-      fd.append('audio', audioBlob!, `answer-${qId}.webm`)
-      res = await attemptApi.submitInterviewAudio(fd)
-    }
-
-    // ✅ Follow-up check
-    if (res?.followUp && !activeFollowUp) {
-      toast("Follow-up question!", { icon: '💬' })
-      setActiveFollowUp(res.followUp)
-      setAnswers(prev => ({ ...prev, [qId]: '' }))
-      setAudioBlob(null)
-      setAudioDuration(0)
+    // If this is a live coding question in a mixed round, the LC submit flow handles it.
+    if (isLcQuestion && lcPhase !== null) {
+      if (!options?.fromAutoTimeout) {
+        toast('Please submit your code and explanation using the buttons above.', { icon: '💡' })
+      }
       return
     }
 
-    // Clear follow-up and advance
-    setActiveFollowUp(null)
+    const isTextMode = interviewMode === 'TEXT' || interviewMode === 'TEXT_LIVE_CODING'
+    const isAudioMode = interviewMode === 'AUDIO' || interviewMode === 'AUDIO_LIVE_CODING'
 
-    if (currentIndex < questions.length - 1) {
-      const next = questions[currentIndex + 1]
-      // If next question is a live coding problem, start its code phase
-      if (next?.liveCodingProblem) {
-        setLcPhase('code')
-        setLcCode(next.liveCodingStarter?.javascript || '')
-      }
-      setCurrentIndex(currentIndex + 1)
-    } else {
-      await handleFinish()
+    if (isTextMode) {
+      if (!answers[qId]?.trim()) { toast.error('Please type your answer.'); return }
+      if (answers[qId].trim().split(/\s+/).length < 10) { toast.error('Min 10 words required.'); return }
     }
-  } catch (err: any) {
-    toast.error(err.response?.data?.message || 'Failed to submit.')
-  } finally { setSubmitting(false) }
-}
-  const handleFinish = async () => {
+
+    const effectiveAudioBlob = options?.forcedAudioBlob ?? audioBlob
+    const effectiveAudioDuration = options?.forcedAudioDuration ?? audioDurationRef.current ?? audioDuration
+    let audioToSubmit: Blob | null = null
+
+    if (isAudioMode) {
+      if (isRecordingRef.current && !options?.forcedAudioBlob) {
+        toast('Recording is still in progress. Please wait a moment.', { icon: '🎙️' })
+        return
+      }
+      if (!effectiveAudioBlob) {
+        toast.error('Please record your answer.')
+        return
+      }
+      audioToSubmit = effectiveAudioBlob
+    }
+
+    stopSpeaking()
+    setSubmitting(true)
+
+    try {
+      let res: any
+      if (isTextMode) {
+        res = await attemptApi.submitInterview({
+          attemptId: attempt.id,
+          questionId: qId,
+          mode: 'TEXT',
+          askedPrompt: activeFollowUp || undefined,
+          textAnswer: answers[qId],
+          timeTakenSeconds: 0,
+        })
+      } else {
+        const verifiedTranscript = sttTranscript.trim()
+        const metrics = computeDeliveryMetrics(verifiedTranscript, effectiveAudioDuration)
+        const fd = new FormData()
+        fd.append('attemptId', attempt.id)
+        fd.append('questionId', qId)
+        fd.append('mode', 'AUDIO')
+        fd.append('timeTakenSeconds', String(effectiveAudioDuration))
+        fd.append('durationSeconds', String(effectiveAudioDuration))
+        fd.append('speechDuration', String(metrics.speechDuration))
+        fd.append('silenceRatio', String(metrics.silenceRatio))
+        fd.append('wordsPerMinute', String(metrics.wordsPerMinute))
+        fd.append('wordCount', String(metrics.wordCount))
+        fd.append('fillerWordCount', String(metrics.fillerWordCount))
+        fd.append('fillerWordRatio', String(metrics.fillerWordRatio))
+        fd.append('deliveryScore', String(metrics.deliveryScore))
+        fd.append('sttTranscript', verifiedTranscript)
+        if (activeFollowUp) fd.append('askedPrompt', activeFollowUp)
+        fd.append('audio', audioToSubmit!, `answer-${qId}.webm`)
+        res = await attemptApi.submitInterviewAudio(fd)
+      }
+
+      if (res?.followUp && !activeFollowUp) {
+        toast('Follow-up question!', { icon: '💬' })
+        setActiveFollowUp(res.followUp)
+        setAnswers(prev => ({ ...prev, [qId]: '' }))
+        setAudioBlob(null)
+        setAudioDuration(0)
+        audioDurationRef.current = 0
+        setSttTranscript('')
+        sttFinalTranscriptRef.current = ''
+        return
+      }
+
+      setActiveFollowUp(null)
+      setAudioBlob(null)
+      setAudioDuration(0)
+      audioDurationRef.current = 0
+      setSttTranscript('')
+      sttFinalTranscriptRef.current = ''
+
+      if (currentIndex < questions.length - 1) {
+        const next = questions[currentIndex + 1]
+        if (next?.liveCodingProblem) {
+          setLcPhase('code')
+          setLcCode(next.liveCodingStarter?.javascript || '')
+        }
+        setCurrentIndex(currentIndex + 1)
+      } else {
+        await handleFinish()
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to submit.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleNext = async () => {
+    await submitCurrentAnswer()
+  }
+
+  async function handleFinish() {
     try {
       const res = await attemptApi.complete(attempt.id)
       const outcome = res.advancement?.outcome
@@ -550,8 +851,10 @@ export default function InterviewRound() {
             </div>
 
             <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 10, padding: '14px 18px' }}>
-              <div style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>AI Prompt</div>
-              <p style={{ color: 'var(--cream)', fontSize: '0.95rem', margin: 0 }}>{lcExplanationPrompt}</p>
+              <div style={{ fontSize: '0.7rem', color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+                {lcActiveFollowUp ? 'Follow-up Prompt' : 'AI Prompt'}
+              </div>
+              <p style={{ color: 'var(--cream)', fontSize: '0.95rem', margin: 0 }}>{lcActiveFollowUp || lcExplanationPrompt}</p>
             </div>
 
             <pre style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: 14, overflow: 'auto', fontSize: '0.82rem', fontFamily: 'monospace', color: 'var(--text-muted)', margin: 0, maxHeight: 180 }}>{lcCode}</pre>
@@ -559,7 +862,7 @@ export default function InterviewRound() {
             {(interviewMode === 'TEXT' || interviewMode === 'TEXT_LIVE_CODING') && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <textarea value={lcExplanation} onChange={e => setLcExplanation(e.target.value)}
-                  placeholder="Explain your approach, time/space complexity, and any trade-offs..."
+                  placeholder={lcActiveFollowUp ? 'Answer the follow-up question with concrete technical details...' : 'Explain your approach, time/space complexity, and any trade-offs...'}
                   className="form-textarea"
                   style={{ minHeight: 160, fontSize: '0.95rem', lineHeight: 1.65, background: 'var(--bg-card)', color: 'var(--text-primary)' }}
                 />
@@ -571,14 +874,39 @@ export default function InterviewRound() {
               <div style={{ background: 'var(--bg-elevated)', border: `1px solid ${lcIsRecording ? 'rgba(251,55,30,0.4)' : 'var(--border)'}`, borderRadius: 14, padding: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, textAlign: 'center' }}>
                 {lcIsRecording && <p style={{ color: 'var(--red)', fontWeight: 600 }}>🔴 Recording — speak clearly and naturally.</p>}
                 {lcAudioBlob && !lcIsRecording && <p style={{ color: 'var(--green-dark)' }}>✓ Explanation recorded ({lcAudioDuration}s)</p>}
-                {!lcAudioBlob && !lcIsRecording && <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Record your explanation of the code you just wrote.</p>}
+                {!lcAudioBlob && !lcIsRecording && <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{lcActiveFollowUp ? 'Record your follow-up response based on your previous explanation.' : 'Record your explanation of the code you just wrote.'}</p>}
+
+                <div style={{ width:'100%', maxWidth:560, display:'flex', flexDirection:'column', gap:8, textAlign:'left', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+                    <span style={{ color:'var(--text-primary)', fontSize:'0.8rem', fontWeight:600 }}>Speech-to-Text Verification</span>
+                    <span style={{ color:'var(--text-muted)', fontSize:'0.72rem' }}>{lcSttTranscript.trim().split(/\s+/).filter(Boolean).length} words</span>
+                  </div>
+                  <textarea
+                    value={lcSttTranscript}
+                    onChange={(e) => {
+                      setLcSttTranscript(e.target.value)
+                      lcSttFinalTranscriptRef.current = e.target.value
+                    }}
+                    placeholder={supportsSpeechRecognition
+                      ? 'Live transcript appears here while recording. Edit it if needed before submitting.'
+                      : 'Automatic speech-to-text is unavailable in this browser. Type what you spoke to verify it.'}
+                    className="form-textarea"
+                    style={{ minHeight: 96, fontSize:'0.9rem', lineHeight:1.55, background:'var(--bg-elevated)', color:'var(--text-primary)', resize:'vertical' }}
+                  />
+                  <span style={{ color:'var(--text-muted)', fontSize:'0.73rem' }}>
+                    {supportsSpeechRecognition
+                      ? (lcIsRecording ? 'Listening in English (en)... transcript updates live.' : 'Review and adjust the transcript before you continue.')
+                      : 'Enable Chrome/Edge speech recognition for live transcript support.'}
+                  </span>
+                </div>
+
                 <button className={`btn ${lcIsRecording ? 'btn-danger' : 'btn-primary'}`}
                   onClick={lcIsRecording ? stopLcRecording : startLcRecording}
                   style={{ width: 56, height: 56, borderRadius: '50%', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {lcIsRecording ? <Square size={20} /> : <span style={{ fontSize: '1.2rem' }}>🎙️</span>}
                 </button>
                 {lcAudioBlob && !lcIsRecording && (
-                  <button className="btn btn-outline btn-sm" onClick={() => { setLcAudioBlob(null); setLcAudioDuration(0) }}>Re-record</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => { setLcAudioBlob(null); setLcAudioDuration(0); setLcSttTranscript(''); lcSttFinalTranscriptRef.current = '' }}>Re-record</button>
                 )}
               </div>
             )}
@@ -616,7 +944,12 @@ export default function InterviewRound() {
       {/* Question card */}
       <div className="card" style={{ background:'var(--bg-elevated)', padding:'28px 28px 22px', position:'relative', border:'1px solid var(--border)' }}>
         <div style={{ position:'absolute', top:-10, left:20, background:'var(--orange)', color:'white', fontSize:'0.65rem', fontWeight:700, padding:'2px 10px', borderRadius:4 }}>AI INTERVIEWER</div>
-        <p style={{ color:'var(--text-primary)', fontSize:'1.15rem', lineHeight:1.65, fontWeight:500, marginBottom:18 }}>{q.prompt}</p>
+        {activeFollowUp && (
+          <div style={{ display:'inline-flex', alignItems:'center', gap:6, marginBottom:10, fontSize:'0.68rem', color:'var(--orange)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--orange)' }} /> Follow-up Question
+          </div>
+        )}
+        <p style={{ color:'var(--text-primary)', fontSize:'1.15rem', lineHeight:1.65, fontWeight:500, marginBottom:18 }}>{activeFollowUp || q.prompt}</p>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           {isSpeaking ? (
             <>
@@ -679,6 +1012,30 @@ export default function InterviewRound() {
             </div>
           )}
 
+          <div style={{ width:'100%', maxWidth:560, display:'flex', flexDirection:'column', gap:8, textAlign:'left', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 14px' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8 }}>
+              <span style={{ color:'var(--text-primary)', fontSize:'0.8rem', fontWeight:600 }}>Speech-to-Text Verification</span>
+              <span style={{ color:'var(--text-muted)', fontSize:'0.72rem' }}>{sttTranscript.trim().split(/\s+/).filter(Boolean).length} words</span>
+            </div>
+            <textarea
+              value={sttTranscript}
+              onChange={(e) => {
+                setSttTranscript(e.target.value)
+                sttFinalTranscriptRef.current = e.target.value
+              }}
+              placeholder={supportsSpeechRecognition
+                ? 'Live transcript appears here while recording. Edit it if needed before submitting.'
+                : 'Automatic speech-to-text is unavailable in this browser. Type what you spoke to verify it.'}
+              className="form-textarea"
+              style={{ minHeight: 96, fontSize:'0.9rem', lineHeight:1.55, background:'var(--bg-elevated)', color:'var(--text-primary)', resize:'vertical' }}
+            />
+            <span style={{ color:'var(--text-muted)', fontSize:'0.73rem' }}>
+              {supportsSpeechRecognition
+                ? (isRecording ? 'Listening in English (en)... transcript updates live.' : 'Review and adjust the transcript before you continue.')
+                : 'Enable Chrome/Edge speech recognition for live transcript support.'}
+            </span>
+          </div>
+
           {/* Recording UI */}
           {isRecording && (
             <>
@@ -698,7 +1055,7 @@ export default function InterviewRound() {
                 ))}
               </div>
               <button className="btn btn-outline btn-sm" onClick={stopRecording} style={{ gap:6 }}>
-                <Square size={13} /> Stop Recording
+                <Square size={13} /> Stop & Review
               </button>
             </>
           )}
@@ -708,7 +1065,7 @@ export default function InterviewRound() {
       {/* Navigation */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid var(--border)', paddingTop:20 }}>
         <div style={{ fontSize:'0.8rem', color:'var(--text-muted)' }}>
-          {isAudioMode ? 'Recording starts automatically after the question is read' : 'Use specific examples from your experience'}
+          {isAudioMode ? 'English TTS plays first, then recording auto-starts and auto-submits at 90s.' : 'Use specific examples from your experience'}
         </div>
         <button className="btn btn-primary" onClick={handleNext} disabled={submitting || !canSubmit || isSpeaking} style={{ minWidth:160, gap:8 }}>
           {submitting

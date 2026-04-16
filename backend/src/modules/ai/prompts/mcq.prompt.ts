@@ -10,6 +10,53 @@ export const APTITUDE_TOPICS = {
 
 export type AptitudeTopicKey = keyof typeof APTITUDE_TOPICS
 
+// ── Behavioral MCQ Prompt ─────────────────────────────────────
+export function behavioralMcqPrompt(role: string, cfg: any): string {
+  const total  = Math.ceil((cfg.totalQuestions || 20) * 2.5)
+  const easy   = Math.round(total * ((cfg.difficultyEasy   || 30) / 100))
+  const medium = Math.round(total * ((cfg.difficultyMedium || 40) / 100))
+  const hard   = total - easy - medium
+
+  return `You are a hiring panel specialist creating behavioural MCQs for a ${role} screening round.
+
+Generate exactly ${total} behavioural MCQs: ${easy} EASY, ${medium} MEDIUM, ${hard} HARD.
+
+ASSESS THESE DIMENSIONS:
+- Ownership and accountability
+- Communication clarity
+- Collaboration and conflict handling
+- Adaptability and learning agility
+- Integrity and decision making under pressure
+
+QUESTION RULES:
+1. Every question must be scenario-based, not definition-based.
+2. Each option must be realistic and plausible in workplace context.
+3. Only one option should be best aligned with strong professional behaviour.
+4. Distractors should represent common but weaker behaviours.
+5. Keep stems concise (2-4 sentences) with clear context.
+6. Distribute the correct option position fairly across A/B/C/D. Do not keep one fixed position.
+
+Respond ONLY with valid JSON — no markdown, no explanation:
+{
+  "questions": [
+    {
+      "type": "MCQ",
+      "difficulty": "EASY" | "MEDIUM" | "HARD",
+      "topicTag": "specific behavioural competency e.g. Ownership · Communication · Teamwork",
+      "stem": "Scenario-based workplace question.",
+      "options": [
+        { "id": "A", "text": "weak but plausible behaviour", "isCorrect": false },
+        { "id": "B", "text": "best professional behaviour", "isCorrect": false },
+        { "id": "C", "text": "partially acceptable but suboptimal", "isCorrect": true },
+        { "id": "D", "text": "poor behaviour under pressure", "isCorrect": false }
+      ],
+      "explanation": "Why the correct option reflects strong behavioural competency.",
+      "marksAwarded": ${cfg.marksPerQuestion || 1}
+    }
+  ]
+}`
+}
+
 // ── JD-Based MCQ Prompt ────────────────────────────────────────
 export function mcqPrompt(jd: string, role: string, cfg: any): string {
   const total  = Math.ceil((cfg.totalQuestions || 20) * 2.5)
@@ -41,6 +88,7 @@ QUESTION STYLE RULES — every question must follow:
 5. For concept questions: frame as a real scenario, not an abstract definition
 6. Use domain-specific terminology from the JD
 7. Stem should be 2-4 sentences — enough context to require thinking
+8. Distribute the correct option position fairly across A/B/C/D. Do not keep one fixed position.
 
 TOPICS TO COVER — extract from JD and test:
 - Language/framework specific behaviour (gotchas, edge cases)
@@ -58,12 +106,12 @@ Respond ONLY with valid JSON — no markdown, no explanation:
       "topicTag": "specific skill from JD e.g. React useEffect · SQL Indexing · REST API Design",
       "stem": "Full question text. For code questions include the code block using \\n for newlines. For scenario questions describe the exact situation.",
       "options": [
-        { "id": "A", "text": "plausible but wrong — common mistake", "isCorrect": false },
-        { "id": "B", "text": "correct answer", "isCorrect": true },
+        { "id": "A", "text": "plausible but wrong — common mistake", "isCorrect": true },
+        { "id": "B", "text": "correct answer", "isCorrect": false },
         { "id": "C", "text": "partially correct but missing key detail", "isCorrect": false },
         { "id": "D", "text": "wrong — only obvious if you know the concept well", "isCorrect": false }
       ],
-      "explanation": "Step-by-step reasoning: why B is correct, why A is the common mistake, what concept this tests.",
+      "explanation": "Step-by-step reasoning: why the correct option is right, why common distractors are wrong, and what concept this tests.",
       "marksAwarded": ${cfg.marksPerQuestion || 1}
     }
   ]
@@ -120,6 +168,7 @@ QUESTION DESIGN RULES:
 7. For blood relations: minimum 4 people with at least 2 relationships to resolve
 8. For seating: minimum 5 people with conditional constraints
 9. Explanation must show step-by-step working with the ACTUAL calculation
+10. Distribute the correct option position fairly across A/B/C/D. Do not keep one fixed position.
 
 Respond ONLY with valid JSON — no markdown, no explanation:
 {
@@ -131,9 +180,9 @@ Respond ONLY with valid JSON — no markdown, no explanation:
       "stem": "Full question text with all data. For multi-part questions include all conditions clearly. For series questions show the full series.",
       "options": [
         { "id": "A", "text": "answer if you forget one condition", "isCorrect": false },
-        { "id": "B", "text": "correct answer", "isCorrect": true },
+        { "id": "B", "text": "correct answer", "isCorrect": false },
         { "id": "C", "text": "answer using wrong formula variant", "isCorrect": false },
-        { "id": "D", "text": "plausible but clearly wrong on careful reading", "isCorrect": false }
+        { "id": "D", "text": "plausible but clearly wrong on careful reading", "isCorrect": true }
       ],
       "explanation": "Step 1: [calculation]. Step 2: [calculation]. Common mistake: candidates choose A because they forget [specific condition]. The correct approach: [full working].",
       "marksAwarded": ${marks}

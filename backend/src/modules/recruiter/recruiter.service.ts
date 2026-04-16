@@ -249,11 +249,13 @@ export async function getLiveMonitor(campaignId: string) {
 }
 
 export async function addCandidate(campaignId: string, input: {
-  email: string; firstName: string; lastName: string; phone?: string
+  email: string; firstName: string; lastName: string; phone?: string; confirmExistingCampaignCandidate?: boolean
 }) {
   if (!isValidEmail(input.email)) {
     throw { status: 400, message: `Invalid email address: ${input.email}` }
   }
+
+  const normalizedEmail = input.email.toLowerCase().trim()
 
   const campaign = await prisma.campaign.findUniqueOrThrow({
     where:  { id: campaignId },
@@ -268,20 +270,43 @@ export async function addCandidate(campaignId: string, input: {
     throw { status: 400, message: 'Campaign has reached maximum candidate limit' }
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } })
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } })
   if (existing) {
-    const alreadyIn = await prisma.candidateProfile.findFirst({ where: { userId: existing.id, campaignId } })
+    const existingProfiles = await prisma.candidateProfile.findMany({
+      where: { userId: existing.id },
+      select: {
+        campaignId: true,
+        campaign: { select: { name: true } },
+      },
+    })
+
+    const alreadyIn = existingProfiles.find((p) => p.campaignId === campaignId)
     if (alreadyIn) throw { status: 409, message: `${input.email} is already added to this campaign` }
+
+    const otherCampaigns = existingProfiles.filter((p) => p.campaignId !== campaignId)
+    if (otherCampaigns.length > 0 && !input.confirmExistingCampaignCandidate) {
+      const campaignList = otherCampaigns
+        .slice(0, 3)
+        .map((p) => p.campaign?.name || p.campaignId)
+        .join(', ')
+      const more = otherCampaigns.length > 3 ? ` +${otherCampaigns.length - 3} more` : ''
+
+      throw {
+        status: 409,
+        code: 'CANDIDATE_EXISTS_IN_OTHER_CAMPAIGN',
+        message: `${normalizedEmail} is already present in other campaign(s): ${campaignList}${more}. Confirm to add anyway.`,
+      }
+    }
   }
 
   const tempPassword = generateTempPassword()
   const passwordHash = await bcrypt.hash(tempPassword, 12)
 
   const user = await prisma.user.upsert({
-    where:  { email: input.email.toLowerCase() },
+    where:  { email: normalizedEmail },
     update: {},
     create: {
-      email:              input.email.toLowerCase(),
+      email:              normalizedEmail,
       firstName:          input.firstName,
       lastName:           input.lastName,
       passwordHash,

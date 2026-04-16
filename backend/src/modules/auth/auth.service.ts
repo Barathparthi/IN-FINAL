@@ -9,6 +9,36 @@ import {
 } from '../../lib/jwt'
 import type { LoginInput, ChangePasswordInput } from './auth.dto'
 
+const CANDIDATE_STATUS_PRIORITY: Record<string, number> = {
+  IN_PROGRESS: 1,
+  READY: 2,
+  ONBOARDING: 3,
+  INVITED: 4,
+  LOCKED: 5,
+  SHORTLISTED: 6,
+  COMPLETED: 7,
+  DISQUALIFIED: 8,
+  REJECTED: 9,
+  TERMINATED: 10,
+}
+
+function pickActiveCandidateProfile<T extends { status: string; updatedAt?: Date; createdAt?: Date }>(profiles: T[]): T | null {
+  if (!profiles?.length) return null
+  return [...profiles].sort((a, b) => {
+    const pa = CANDIDATE_STATUS_PRIORITY[a.status] ?? 999
+    const pb = CANDIDATE_STATUS_PRIORITY[b.status] ?? 999
+    if (pa !== pb) return pa - pb
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime()
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime()
+    return tb - ta
+  })[0]
+}
+
+function toProfileArray<T>(value: T | T[] | null | undefined): T[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
+}
+
 // ─── Login ────────────────────────────────────────────────────
 
 export async function login(input: LoginInput) {
@@ -16,7 +46,7 @@ export async function login(input: LoginInput) {
     where: { email: input.email.toLowerCase() },
     include: {
       candidateProfile: {
-        select: { id: true, status: true, campaignId: true },
+        select: { id: true, status: true, campaignId: true, createdAt: true, updatedAt: true },
       },
     },
   })
@@ -26,14 +56,22 @@ export async function login(input: LoginInput) {
     throw { status: 401, message: 'Invalid email or password' }
   }
 
+  const selectedCandidate = user.role === 'CANDIDATE'
+    ? pickActiveCandidateProfile(toProfileArray(user.candidateProfile as any))
+    : null
+
+  if (user.role === 'CANDIDATE' && !selectedCandidate) {
+    throw { status: 403, message: 'No campaign assignment found for this account.', code: 'NO_CAMPAIGN_ASSIGNMENT' }
+  }
+
   // Candidate locked — recruiter has not granted permission yet
-  if (user.role === 'CANDIDATE' && user.candidateProfile?.status === 'LOCKED') {
+  if (user.role === 'CANDIDATE' && selectedCandidate?.status === 'LOCKED') {
     throw { status: 403, message: 'Your account has not been activated yet. Please wait for the recruiter to grant access.', code: 'CANDIDATE_LOCKED' }
   }
 
   // Candidate status check
-  if (user.role === 'CANDIDATE' && user.candidateProfile) {
-    const status = user.candidateProfile.status
+  if (user.role === 'CANDIDATE' && selectedCandidate) {
+    const status = selectedCandidate.status
     if (status === 'TERMINATED') {
       throw { status: 403, message: 'Your session was terminated due to proctoring violations.', code: 'CANDIDATE_TERMINATED' }
     }
@@ -60,17 +98,19 @@ export async function login(input: LoginInput) {
   // If candidate is LOCKED (first login) → move to READY if they have done everything
   // Actually, we can just leave it as is or move to a separate check.
   // For now, let's just use LOCKED.
-  if (user.role === 'CANDIDATE' && user.candidateProfile?.status === 'INVITED') {
+  let effectiveCandidate = selectedCandidate
+  if (user.role === 'CANDIDATE' && selectedCandidate?.status === 'INVITED') {
     await prisma.candidateProfile.update({
-      where: { id: user.candidateProfile.id },
+      where: { id: selectedCandidate.id },
       data: { status: 'ONBOARDING' },
     })
+    effectiveCandidate = { ...selectedCandidate, status: 'ONBOARDING' } as any
   }
 
   const accessToken = signAccessToken({
     sub: user.id,
     role: user.role,
-    candidateId: user.candidateProfile?.id,
+    candidateId: effectiveCandidate?.id,
   })
 
   const refreshToken = signRefreshToken(user.id)
@@ -94,9 +134,9 @@ export async function login(input: LoginInput) {
       lastName: user.lastName,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
-      candidateStatus: user.candidateProfile?.status ?? null,
-      candidateId: user.candidateProfile?.id ?? null,
-      campaignId: user.candidateProfile?.campaignId ?? null,
+      candidateStatus: effectiveCandidate?.status ?? null,
+      candidateId: effectiveCandidate?.id ?? null,
+      campaignId: effectiveCandidate?.campaignId ?? null,
     },
   }
 }
@@ -128,13 +168,17 @@ export async function refreshAccessToken(refreshToken: string) {
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: payload.sub },
-    include: { candidateProfile: { select: { id: true } } },
+    include: { candidateProfile: { select: { id: true, status: true, campaignId: true, createdAt: true, updatedAt: true } } },
   })
+
+  const selectedCandidate = user.role === 'CANDIDATE'
+    ? pickActiveCandidateProfile(toProfileArray(user.candidateProfile as any))
+    : null
 
   const newAccessToken = signAccessToken({
     sub: user.id,
     role: user.role,
-    candidateId: user.candidateProfile?.id,
+    candidateId: selectedCandidate?.id,
   })
 
   return { accessToken: newAccessToken }
@@ -193,14 +237,11 @@ export async function changePassword(
   // Invalidate all existing refresh tokens for this user
   await prisma.refreshToken.deleteMany({ where: { userId } })
 
-  // If candidate — advance status from ONBOARDING to READY (if resume already uploaded)
-  const candidate = await prisma.candidateProfile.findUnique({ where: { userId } })
-  if (candidate && candidate.status === 'ONBOARDING' && candidate.resumeUrl) {
-    await prisma.candidateProfile.update({
-      where: { id: candidate.id },
-      data: { status: 'READY' },
-    })
-  }
+  // If candidate — advance any ONBOARDING profile with uploaded resume to READY.
+  await prisma.candidateProfile.updateMany({
+    where: { userId, status: 'ONBOARDING', resumeUrl: { not: null } },
+    data: { status: 'READY' },
+  })
 
   await prisma.auditLog.create({
     data: {
@@ -231,6 +272,8 @@ export async function getMe(userId: string) {
           status: true,
           campaignId: true,
           resumeUrl: true,
+          createdAt: true,
+          updatedAt: true,
           campaign: { select: { name: true, role: true } },
         },
       },
@@ -249,5 +292,14 @@ export async function getMe(userId: string) {
     },
   })
 
-  return user
+  if (user.role !== 'CANDIDATE') return user
+
+  const profiles = toProfileArray(user.candidateProfile as any)
+  const active = pickActiveCandidateProfile(profiles)
+
+  return {
+    ...user,
+    candidateProfiles: profiles,
+    candidateProfile: active,
+  }
 }

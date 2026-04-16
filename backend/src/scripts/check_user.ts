@@ -29,8 +29,11 @@ async function main() {
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
-    candidateStatus: user.candidateProfile?.status,
-    candidateId: user.candidateProfile?.id
+    candidateProfiles: (user.candidateProfile || []).map((c) => ({
+      candidateId: c.id,
+      campaignId: c.campaignId,
+      status: c.status,
+    }))
   })
 }
 

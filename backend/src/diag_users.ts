@@ -9,7 +9,8 @@ async function main() {
     })
     console.log('Recent Users Status:')
     users.forEach(u => {
-      console.log(`- ${u.email} (${u.role}): status=${u.candidateProfile?.status || 'N/A'}, isActive=${u.isActive}`)
+      const status = u.candidateProfile?.[0]?.status || 'N/A'
+      console.log(`- ${u.email} (${u.role}): status=${status}, isActive=${u.isActive}`)
     })
   } catch (err) {
     console.error(err)

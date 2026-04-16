@@ -8,8 +8,12 @@ async function main() {
 
   console.log('--- CANDIDATE Link Integrity Check ---')
   for (const u of users) {
+    const profiles = Array.isArray(u.candidateProfile)
+      ? u.candidateProfile
+      : (u.candidateProfile ? [u.candidateProfile] : [])
+    const top = profiles[0]
     console.log(`User: ${u.email} [${u.id}]`)
-    console.log(`  Profile: ${u.candidateProfile ? u.candidateProfile.id : '!!! MISSING !!!'} [Status: ${u.candidateProfile?.status || 'N/A'}]`)
+    console.log(`  Profiles: ${profiles.length} | Primary: ${top ? top.id : '!!! MISSING !!!'} [Status: ${top?.status || 'N/A'}]`)
   }
 }
 

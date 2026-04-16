@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { mcqPrompt, aptitudePrompt } from './prompts/mcq.prompt'
+import { mcqPrompt, aptitudePrompt, behavioralMcqPrompt } from './prompts/mcq.prompt'
 import { codingPrompt, dsaPrompt } from './prompts/coding.prompt'
 import {
   interviewPrompt,
@@ -27,12 +27,63 @@ async function chat(prompt: string, temperature = 0.8): Promise<any> {
   return JSON.parse(res.choices[0].message.content || '{}')
 }
 
+type McqCategory = 'TECHNICAL' | 'APTITUDE' | 'BEHAVIORAL'
+
+function splitEvenly(total: number, keys: readonly McqCategory[]): Record<McqCategory, number> {
+  const safeTotal = Math.max(1, Number(total || 0))
+  const base = Math.floor(safeTotal / keys.length)
+  const remainder = safeTotal % keys.length
+  const out = { TECHNICAL: base, APTITUDE: base, BEHAVIORAL: base }
+  for (let i = 0; i < remainder; i += 1) out[keys[i]] += 1
+  return out
+}
+
+function toQuestionArray(raw: any): any[] {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.questions)) return raw.questions
+  return []
+}
+
+function withCategoryTag(items: any[], category: McqCategory) {
+  return items.map((q) => {
+    const existing = String(q?.topicTag || '').replace(/^(TECHNICAL|APTITUDE|BEHAVIOU?RAL)\s*:\s*/i, '').trim()
+    return {
+      ...q,
+      type: q?.type || 'MCQ',
+      topicTag: `${category}: ${existing || 'General'}`,
+    }
+  })
+}
+
 // ── MCQ Generation ─────────────────────────────────────────────
 export async function generateMCQs(jd: string, role: string, cfg: any) {
-  const mode = cfg.questionMode || 'JD_BASED'
-  const prompt = mode === 'APTITUDE' ? aptitudePrompt(cfg) : mcqPrompt(jd, role, cfg)
-  const result = await chat(prompt)
-  return result.questions || result
+  const split = splitEvenly(cfg.totalQuestions || 20, ['TECHNICAL', 'APTITUDE', 'BEHAVIORAL'])
+
+  const jobs: Array<Promise<{ category: McqCategory; questions: any[] }>> = []
+
+  if (split.TECHNICAL > 0) {
+    jobs.push(
+      chat(mcqPrompt(jd, role, { ...cfg, questionMode: 'JD_BASED', totalQuestions: split.TECHNICAL }))
+        .then((res) => ({ category: 'TECHNICAL' as McqCategory, questions: toQuestionArray(res) })),
+    )
+  }
+
+  if (split.APTITUDE > 0) {
+    jobs.push(
+      chat(aptitudePrompt({ ...cfg, questionMode: 'APTITUDE', totalQuestions: split.APTITUDE }))
+        .then((res) => ({ category: 'APTITUDE' as McqCategory, questions: toQuestionArray(res) })),
+    )
+  }
+
+  if (split.BEHAVIORAL > 0) {
+    jobs.push(
+      chat(behavioralMcqPrompt(role, { ...cfg, totalQuestions: split.BEHAVIORAL }))
+        .then((res) => ({ category: 'BEHAVIORAL' as McqCategory, questions: toQuestionArray(res) })),
+    )
+  }
+
+  const generated = await Promise.all(jobs)
+  return generated.flatMap(({ category, questions }) => withCategoryTag(questions, category))
 }
 
 // ── Coding Generation ──────────────────────────────────────────
@@ -89,6 +140,7 @@ export async function generateInterviewPrompts(
 export async function runGapAnalysis(input: {
   jobDescription: string
   role: string
+  hiringType?: string
   resumeText: string
   roundScores: any[]
   strikeCount: number

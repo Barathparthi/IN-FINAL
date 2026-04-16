@@ -94,7 +94,7 @@ export const submitLiveCodingExplain = [
   audioUpload.single('audio'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { attemptId, answerId, questionId } = SubmitLiveCodingExplainDto.parse(req.body)
+      const { attemptId, answerId, questionId, askedPrompt, sttTranscript } = SubmitLiveCodingExplainDto.parse(req.body)
 
       if (!req.file) {
         return res.status(400).json({ error: 'Audio file is required' })
@@ -104,6 +104,8 @@ export const submitLiveCodingExplain = [
         attemptId,
         answerId,
         questionId,
+        askedPrompt,
+        sttTranscript,
         audioBuffer: req.file.buffer,
       })
 

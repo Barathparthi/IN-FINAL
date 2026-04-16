@@ -154,7 +154,7 @@ export async function generateScorecard(candidateId: string) {
   const candidate = await prisma.candidateProfile.findUniqueOrThrow({
     where:   { id: candidateId },
     include: {
-      campaign: { select: { jobDescription: true, role: true } },
+      campaign: { select: { jobDescription: true, role: true, hiringType: true } },
       attempts: {
         where:   { status: 'COMPLETED' },
         include: {
@@ -241,6 +241,7 @@ export async function generateScorecard(candidateId: string) {
   const result = await runGapAnalysis({
     jobDescription:   candidate.campaign.jobDescription,
     role:             candidate.campaign.role,
+    hiringType:       candidate.campaign.hiringType,
     resumeText:       candidate.resumeText || '',
     roundScores,
     strikeCount:      totalStrikes,

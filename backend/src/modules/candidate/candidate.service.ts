@@ -82,7 +82,8 @@ export async function getMyProfile(candidateId: string) {
 import cloudinary from '../../lib/cloudinary'
 
 export async function uploadResume(candidateId: string, fileBuffer: Buffer, mimeType: string) {
-  const resumeText = await extractTextFromPdf(fileBuffer)
+  const extractedResumeText = await extractTextFromPdf(fileBuffer)
+  const resumeText = extractedResumeText.trim().length > 0 ? extractedResumeText.trim() : null
 
   // Upload to Cloudinary
   const result: any = await new Promise((resolve, reject) => {
@@ -126,7 +127,10 @@ export async function uploadResume(candidateId: string, fileBuffer: Buffer, mime
     })
   }
 
-  return { resumeUrl, resumeText: resumeText.slice(0, 200) + '...' }
+  return {
+    resumeUrl,
+    resumeText: resumeText ? `${resumeText.slice(0, 200)}...` : '',
+  }
 }
 
 export async function getOnboardingStatus(candidateId: string) {

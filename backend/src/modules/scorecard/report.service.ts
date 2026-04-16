@@ -3,7 +3,7 @@ import type { Readable } from 'stream'
 
 // ── Brand colours ─────────────────────────────────────────────
 const ORANGE  = '#FB851E'
-const NAVY    = '#1E2A3A'
+const NAVY    = '#FFFFFF'
 const TEAL    = '#23979C'
 const GREEN   = '#27AE60'
 const RED     = '#E74C3C'
@@ -13,6 +13,7 @@ const LGRAY   = '#94A3B8'
 const DARK    = '#0F172A'
 const WHITE   = '#FFFFFF'
 const LIGHT   = '#F8FAFC'
+const SOFT_HEADER = '#F8FAFC'
 const BORDER  = '#E2E8F0'
 const BG2     = '#F1F5F9'
 
@@ -54,16 +55,42 @@ function confidenceLabel(score: number): { label: string; color: string } {
 }
 
 // ── Hire recommendation ────────────────────────────────────────
-function classifyRecommendation(fitPct: number, trustScore: number) {
-  if (fitPct >= 80 && trustScore >= 80) return { label: 'STRONG HIRE', color: WHITE, bg: GREEN  }
-  if (fitPct >= 65 && trustScore >= 65) return { label: 'HIRE',        color: WHITE, bg: TEAL   }
-  if (fitPct >= 50 && trustScore >= 50) return { label: 'BORDERLINE',  color: WHITE, bg: AMBER  }
-  return                                       { label: 'NO HIRE',     color: WHITE, bg: RED    }
+function classifyRecommendation(fitPct: number, trustScore: number, hiringType?: string) {
+  const isCampus = (hiringType || '').toUpperCase() === 'CAMPUS'
+
+  if (isCampus) {
+    if (fitPct >= 76 && trustScore >= 72) return { label: 'FAST-TRACK', color: WHITE, bg: GREEN }
+    if (fitPct >= 62 && trustScore >= 62) return { label: 'HIRE',       color: WHITE, bg: TEAL  }
+    if (fitPct >= 50 && trustScore >= 52) return { label: 'WATCHLIST',  color: WHITE, bg: AMBER }
+    return                                        { label: 'NO HIRE',    color: WHITE, bg: RED   }
+  }
+
+  if (fitPct >= 82 && trustScore >= 78) return { label: 'STRONG HIRE', color: WHITE, bg: GREEN }
+  if (fitPct >= 68 && trustScore >= 66) return { label: 'HIRE',        color: WHITE, bg: TEAL  }
+  if (fitPct >= 54 && trustScore >= 55) return { label: 'BORDERLINE',  color: WHITE, bg: AMBER }
+  return                                       { label: 'NO HIRE',      color: WHITE, bg: RED   }
+}
+
+function getHiringTrackLabels(hiringType?: string) {
+  const isCampus = (hiringType || '').toUpperCase() === 'CAMPUS'
+  return {
+    isCampus,
+    reportTitle: isCampus
+      ? 'Fresher Hiring - Campus Report'
+      : 'Experienced Talent Hiring - Lateral Report',
+    topTrackLabel: isCampus
+      ? 'FRESHER HIRING - CAMPUS'
+      : 'EXPERIENCED TALENT HIRING - LATERAL',
+    compactBadge: isCampus ? 'FRESHER HIRING' : 'EXPERIENCED TALENT',
+    inlineTrack: isCampus ? 'FRESHER HIRING - CAMPUS' : 'EXPERIENCED TALENT HIRING - LATERAL',
+    detailsTrack: isCampus ? 'Fresher Hiring - Campus' : 'Experienced Talent Hiring - Lateral',
+  }
 }
 
 // ── Interfaces ────────────────────────────────────────────────
 export interface InterviewPreview {
   prompt:           string
+  answerText?:      string
   answerPreview:    string
   category?:        string
   evaluationRubric?: string
@@ -104,6 +131,135 @@ export interface ReportData {
   }
   strikeLog:         any[]
   interviewPreviews: InterviewPreview[]
+}
+
+type SkillStatus = 'MATCHED' | 'PARTIAL' | 'MISSING'
+type SkillSplitRow = {
+  priority: 'Must Have' | 'Good To Have' | 'Nice To Have'
+  skill: string
+  status: SkillStatus
+  evidence?: string
+  comment?: string
+}
+
+function normalizeSkillStatus(value: any): SkillStatus {
+  const s = String(value || '').toUpperCase()
+  if (s.includes('MISS') || s.includes('GAP') || s.includes('NO')) return 'MISSING'
+  if (s.includes('PART')) return 'PARTIAL'
+  if (s.includes('MATCH') || s.includes('YES') || s.includes('HAVE')) return 'MATCHED'
+  return 'PARTIAL'
+}
+
+function normalizeSkillEntries(raw: any, priority: SkillSplitRow['priority'], defaultStatus: SkillStatus): SkillSplitRow[] {
+  const rows: SkillSplitRow[] = []
+  const arr = Array.isArray(raw) ? raw : []
+
+  for (const entry of arr) {
+    if (!entry) continue
+    if (typeof entry === 'string') {
+      rows.push({ priority, skill: entry, status: defaultStatus })
+      continue
+    }
+
+    const skill = String(entry.skill || entry.name || entry.topic || '').trim()
+    if (!skill) continue
+    rows.push({
+      priority,
+      skill,
+      status: normalizeSkillStatus(entry.status || defaultStatus),
+      evidence: entry.evidence ? String(entry.evidence) : '',
+      comment: entry.comment ? String(entry.comment) : '',
+    })
+  }
+  return rows
+}
+
+function collectSkillSplitRows(gap: any): SkillSplitRow[] {
+  const split = gap?.jdSkillSplit || gap?.jdSkillCoverage || gap?.resumeJDSkillSplit || {}
+
+  const must = normalizeSkillEntries(
+    split.mustHave || split.must || split.required || split.priority1,
+    'Must Have',
+    'PARTIAL',
+  )
+  const good = normalizeSkillEntries(
+    split.goodToHave || split.good || split.preferred || split.priority2,
+    'Good To Have',
+    'PARTIAL',
+  )
+  const nice = normalizeSkillEntries(
+    split.niceToHave || split.nice || split.bonus || split.priority3,
+    'Nice To Have',
+    'PARTIAL',
+  )
+
+  const rows = [...must, ...good, ...nice]
+  if (rows.length > 0) return rows
+
+  // Fallback for older scorecards.
+  const fallback = [
+    ...normalizeSkillEntries((gap?.jdMatchedSkills || []).map((skill: string) => ({ skill, status: 'MATCHED' })), 'Must Have', 'MATCHED'),
+    ...normalizeSkillEntries((gap?.jdMissingSkills || []).map((skill: string) => ({ skill, status: 'MISSING' })), 'Must Have', 'MISSING'),
+  ]
+  return fallback
+}
+
+function skillStatusColor(status: SkillStatus) {
+  if (status === 'MATCHED') return GREEN
+  if (status === 'MISSING') return RED
+  return AMBER
+}
+
+function scoreToPerformanceLabel(score: number): 'EXCELLENT' | 'GOOD' | 'AVERAGE' | 'WEAK' {
+  if (score >= 8) return 'EXCELLENT'
+  if (score >= 6.5) return 'GOOD'
+  if (score >= 5) return 'AVERAGE'
+  return 'WEAK'
+}
+
+function performanceColor(label: string) {
+  if (label === 'EXCELLENT') return GREEN
+  if (label === 'GOOD') return TEAL
+  if (label === 'AVERAGE') return AMBER
+  return RED
+}
+
+function collectTechnicalRows(gap: any, previews: InterviewPreview[]) {
+  const rows: Array<{ skill: string; score: number; label: string; comment: string }> = []
+  const matrix = Array.isArray(gap?.technicalSkillMatrix) ? gap.technicalSkillMatrix : []
+
+  for (const item of matrix) {
+    const skill = String(item?.skill || item?.topic || item?.name || '').trim()
+    if (!skill) continue
+    const rawScore = Number(item?.performanceScore ?? item?.score ?? item?.rating ?? 0)
+    const score = Number.isFinite(rawScore) ? Math.max(0, Math.min(10, rawScore)) : 0
+    const label = String(item?.performanceLabel || '').toUpperCase() || scoreToPerformanceLabel(score)
+    const comment = String(item?.comment || item?.evidence || 'Evidence captured from interview performance.')
+    rows.push({ skill, score, label, comment })
+  }
+
+  if (rows.length > 0) return rows.slice(0, 10)
+
+  // Fallback using category averages when AI matrix is missing.
+  const catMap = new Map<string, { sum: number; count: number; reason?: string }>()
+  previews.forEach((p) => {
+    if (p.aiScore == null || !p.category) return
+    const key = String(p.category).trim()
+    const cur = catMap.get(key) || { sum: 0, count: 0, reason: p.aiReasoning || '' }
+    cur.sum += p.aiScore
+    cur.count += 1
+    if (!cur.reason && p.aiReasoning) cur.reason = p.aiReasoning
+    catMap.set(key, cur)
+  })
+
+  for (const [skill, m] of catMap.entries()) {
+    const score = m.count > 0 ? m.sum / m.count : 0
+    const label = scoreToPerformanceLabel(score)
+    const comment = m.reason ? String(m.reason).slice(0, 140) : 'Derived from interview category scores.'
+    rows.push({ skill, score, label, comment })
+  }
+
+  return rows.slice(0, 10)
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -152,29 +308,35 @@ function scoreBar(doc: any, x: number, y: number, w: number, h: number, pct: num
 export function generateReportPDF(data: ReportData): Readable {
   const doc = new PDFDocument({ margin: MARGIN, size: 'A4', autoFirstPage: true, bufferPages: true })
 
+  const hiringType = (data.campaign.hiringType || 'LATERAL').toUpperCase()
+  const trackLabels = getHiringTrackLabels(hiringType)
+  const isCampus = trackLabels.isCampus
+  const trackAccent = isCampus ? TEAL : ORANGE
+  const trackTitle = trackLabels.reportTitle
+
   const fitPct  = data.scorecard.technicalFitPercent ?? 0
   const trust   = data.scorecard.trustScore ?? 0
   const strikes = data.strikeLog.filter((s: any) => s.isStrike).length
-  const rec     = classifyRecommendation(fitPct, trust)
+  const rec     = classifyRecommendation(fitPct, trust, hiringType)
 
   // HEADER BAND
-  doc.rect(0, 0, pw(doc), 78).fill(NAVY)
-  doc.fillColor(ORANGE).fontSize(18).font('Helvetica-Bold').text('Indium', MARGIN, 18)
-  const logoW = doc.widthOfString('Indium') + 2
-  doc.fillColor(WHITE).fontSize(18).font('Helvetica').text('AI', MARGIN + logoW, 18)
-  doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text('CANDIDATE ASSESSMENT REPORT', MARGIN, 40)
+  doc.rect(0, 0, pw(doc), 78).fill(NAVY).stroke(BORDER)
+  doc.fillColor(ORANGE).fontSize(18).font('Helvetica-Bold').text('ihire', MARGIN, 18)
+  const logoW = doc.widthOfString('ihire') + 2
+  doc.fillColor(DARK).fontSize(18).font('Helvetica').text('AI', MARGIN + logoW, 18)
+  doc.fillColor('#94A3B8').fontSize(8).font('Helvetica').text(trackTitle.toUpperCase(), MARGIN, 40)
   doc.fillColor('#64748B').fontSize(7.5).text(
     `Generated: ${data.scorecard.generatedAt ? new Date(data.scorecard.generatedAt).toLocaleString('en-IN') : new Date().toLocaleString('en-IN')}`,
     MARGIN, 52
   )
-  doc.fillColor(WHITE).fontSize(11).font('Helvetica-Bold')
+  doc.fillColor(DARK).fontSize(11).font('Helvetica-Bold')
      .text(data.campaign.name, 0, 22, { align: 'right', width: pw(doc) - MARGIN })
   doc.fillColor('#94A3B8').fontSize(8).font('Helvetica')
      .text(data.campaign.role, 0, 36, { align: 'right', width: pw(doc) - MARGIN })
      
   if (data.campaign.hiringType) {
-    const typeLabel = (data.campaign.hiringType === 'CAMPUS' ? 'CAMPUS HIRING' : 'LATERAL HIRING')
-    doc.fillColor(ORANGE).fontSize(7).font('Helvetica-Bold')
+    const typeLabel = trackLabels.topTrackLabel
+    doc.fillColor(trackAccent).fontSize(7).font('Helvetica-Bold')
        .text(typeLabel, 0, 50, { align: 'right', width: pw(doc) - MARGIN })
   }
 
@@ -199,7 +361,7 @@ export function generateReportPDF(data: ReportData): Readable {
   doc.fillColor(DARK).fontSize(20).font('Helvetica-Bold').text(`${data.candidate.firstName} ${data.candidate.lastName}`, MARGIN, infoY, { width: infoW })
   doc.fillColor(GRAY).fontSize(9.5).font('Helvetica').text(data.candidate.email, MARGIN, doc.y + 2, { width: infoW })
   
-  const campType = data.campaign.hiringType ? `  ·  ${data.campaign.hiringType} HIRING` : ''
+  const campType = data.campaign.hiringType ? `  ·  ${trackLabels.inlineTrack}` : ''
   doc.fillColor(LGRAY).fontSize(8.5).text(`${data.campaign.role}  ·  ${data.campaign.name}${campType}`, MARGIN, doc.y + 3, { width: infoW })
 
   doc.y = infoY + photoH + 12
@@ -213,11 +375,15 @@ export function generateReportPDF(data: ReportData): Readable {
   doc.rect(MARGIN, overviewY, 6, 180).fill(rec.bg)
   
   // Recommendation Badge
-  doc.rect(MARGIN + 16, overviewY + 16, 120, 24).fill(rec.bg)
-  doc.fillColor(WHITE).fontSize(10).font('Helvetica-Bold').text(rec.label, MARGIN + 16, overviewY + 23, { width: 120, align: 'center' })
+  doc.rect(MARGIN + 16, overviewY + 16, 120, 24).fill(WHITE).stroke(rec.bg)
+  doc.fillColor(rec.bg).fontSize(10).font('Helvetica-Bold').text(rec.label, MARGIN + 16, overviewY + 23, { width: 120, align: 'center' })
+
+  // Hiring track badge
+  doc.rect(MARGIN + 252, overviewY + 16, 130, 24).fill(WHITE).stroke(trackAccent)
+  doc.fillColor(trackAccent).fontSize(8).font('Helvetica-Bold').text(trackLabels.compactBadge, MARGIN + 252, overviewY + 23, { width: 130, align: 'center' })
   
   // Hiring Risk Badge
-  doc.rect(MARGIN + 144, overviewY + 16, 100, 24).fill('#FEF2F2').stroke(riskColor)
+  doc.rect(MARGIN + 144, overviewY + 16, 100, 24).fill(WHITE).stroke(riskColor)
   doc.fillColor(riskColor).fontSize(9).font('Helvetica-Bold').text(`RISK: ${risk}`, MARGIN + 144, overviewY + 23, { width: 100, align: 'center' })
 
   // Fit & Trust
@@ -246,6 +412,28 @@ export function generateReportPDF(data: ReportData): Readable {
   doc.fillColor(DARK).font('Helvetica').text(gap, MARGIN + 32 + boxW, overviewY + 135, { width: boxW - 16, height: 26 })
 
   doc.y = overviewY + 195
+
+  // Candidate details block
+  sectionTitle(doc, 'Candidate Details')
+  const detailsY = doc.y
+  doc.rect(MARGIN, detailsY, contentW(doc), 74).fill(LIGHT).stroke(BORDER)
+  doc.rect(MARGIN, detailsY, 4, 74).fill(trackAccent)
+  const leftX = MARGIN + 12
+  const rightX = MARGIN + contentW(doc) / 2 + 6
+
+  doc.fillColor(LGRAY).fontSize(7.2).font('Helvetica-Bold').text('NAME', leftX, detailsY + 10)
+  doc.fillColor(DARK).fontSize(10.2).font('Helvetica').text(`${data.candidate.firstName} ${data.candidate.lastName}`, leftX, detailsY + 21, { width: contentW(doc) / 2 - 24 })
+
+  doc.fillColor(LGRAY).fontSize(7.2).font('Helvetica-Bold').text('EMAIL', leftX, detailsY + 40)
+  doc.fillColor(DARK).fontSize(9.2).font('Helvetica').text(data.candidate.email, leftX, detailsY + 51, { width: contentW(doc) / 2 - 24 })
+
+  doc.fillColor(LGRAY).fontSize(7.2).font('Helvetica-Bold').text('ROLE / CAMPAIGN', rightX, detailsY + 10)
+  doc.fillColor(DARK).fontSize(10).font('Helvetica').text(`${data.campaign.role} • ${data.campaign.name}`, rightX, detailsY + 21, { width: contentW(doc) / 2 - 24 })
+
+  doc.fillColor(LGRAY).fontSize(7.2).font('Helvetica-Bold').text('HIRING TRACK', rightX, detailsY + 40)
+  doc.fillColor(trackAccent).fontSize(9.2).font('Helvetica-Bold').text(trackLabels.detailsTrack, rightX, detailsY + 51)
+
+  doc.y = detailsY + 86
   sectionTitle(doc, 'Assessment Rounds')
   const rounds = (data.scorecard.roundScores || [])
     .slice().sort((a: any, b: any) => (a.roundOrder || 0) - (b.roundOrder || 0))
@@ -319,6 +507,66 @@ export function generateReportPDF(data: ReportData): Readable {
       doc.y = cardY + cardH + 14
     }
 
+    // ── Resume vs JD priority split (Must/Good/Nice) ───────────
+    const skillSplitRows = collectSkillSplitRows(gap)
+    if (skillSplitRows.length > 0) {
+      pageCheck(doc, 90)
+      sectionTitle(doc, 'Resume vs JD Match Split (Must / Good / Nice)')
+
+      const cols = {
+        priority: 96,
+        skill: 160,
+        status: 92,
+        comment: contentW(doc) - 96 - 160 - 92,
+      }
+
+      const drawSplitHeader = (y: number) => {
+        doc.rect(MARGIN, y, cols.priority, 24).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority, y, cols.skill, 24).fill(SOFT_HEADER).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority + cols.skill, y, cols.status, 24).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority + cols.skill + cols.status, y, cols.comment, 24).fill(SOFT_HEADER).stroke(BORDER)
+
+        doc.fillColor(DARK).fontSize(7.5).font('Helvetica-Bold').text('JD PRIORITY', MARGIN + 8, y + 9, { width: cols.priority - 12 })
+        doc.fillColor(DARK).fontSize(7.5).font('Helvetica-Bold').text('SKILL', MARGIN + cols.priority + 8, y + 9, { width: cols.skill - 12 })
+        doc.fillColor(DARK).fontSize(7.5).font('Helvetica-Bold').text('MATCH', MARGIN + cols.priority + cols.skill + 8, y + 9, { width: cols.status - 12, align: 'center' })
+        doc.fillColor(DARK).fontSize(7.5).font('Helvetica-Bold').text('COMMENTS / EVIDENCE', MARGIN + cols.priority + cols.skill + cols.status + 8, y + 9, { width: cols.comment - 12 })
+      }
+
+      let y = doc.y
+      drawSplitHeader(y)
+      y += 24
+      for (const row of skillSplitRows.slice(0, 18)) {
+        const rowH = 26
+        if (y + rowH > ph(doc) - 55) {
+          doc.addPage()
+          y = doc.y
+          drawSplitHeader(y)
+          y += 24
+        }
+
+        doc.rect(MARGIN, y, cols.priority, rowH).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority, y, cols.skill, rowH).fill(LIGHT).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority + cols.skill, y, cols.status, rowH).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.priority + cols.skill + cols.status, y, cols.comment, rowH).fill(LIGHT).stroke(BORDER)
+
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica-Bold').text(row.priority.toUpperCase(), MARGIN + 8, y + 8, { width: cols.priority - 12 })
+        doc.fillColor(DARK).fontSize(8.2).font('Helvetica').text(row.skill, MARGIN + cols.priority + 8, y + 8, { width: cols.skill - 12 })
+
+        const sColor = skillStatusColor(row.status)
+        const pillW = 64
+        const pillX = MARGIN + cols.priority + cols.skill + (cols.status - pillW) / 2
+        doc.rect(pillX, y + 6, pillW, 14).fill(sColor)
+        doc.fillColor(WHITE).fontSize(7).font('Helvetica-Bold').text(row.status, pillX, y + 10, { width: pillW, align: 'center' })
+
+        const cText = row.comment || row.evidence || 'Assessment evidence available in detailed Q&A.'
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica').text(cText, MARGIN + cols.priority + cols.skill + cols.status + 8, y + 8, { width: cols.comment - 12, ellipsis: true })
+
+        y += rowH
+      }
+
+      doc.y = y + 12
+    }
+
     // ── JD Fitness Table ─────────────────────────────────────────
     const jdMatchedSkills = (gap.jdMatchedSkills || []) as string[]
     const jdMissingSkills = (gap.jdMissingSkills || []) as string[]
@@ -340,11 +588,11 @@ export function generateReportPDF(data: ReportData): Readable {
       const tblY = doc.y
 
       // ── Header row
-      doc.rect(MARGIN,          tblY, COL1_W, HDR_H).fill(NAVY)
-      doc.rect(MARGIN + COL1_W, tblY, COL2_W, HDR_H).fill('#334155')
-      doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+      doc.rect(MARGIN,          tblY, COL1_W, HDR_H).fill(WHITE).stroke(BORDER)
+      doc.rect(MARGIN + COL1_W, tblY, COL2_W, HDR_H).fill(SOFT_HEADER).stroke(BORDER)
+      doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold')
          .text('JD SKILL',      MARGIN + 12,          tblY + 9, { width: COL1_W - 20 })
-      doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+      doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold')
          .text('RESUME MATCH',  MARGIN + COL1_W + 10, tblY + 9, { width: COL2_W - 20, align: 'center' })
 
       // ── Data rows
@@ -380,11 +628,11 @@ export function generateReportPDF(data: ReportData): Readable {
     const colW  = contentW(doc) / 2
 
     // Header row
-    doc.rect(MARGIN,        hdrY, colW, 20).fill(NAVY)
-    doc.rect(MARGIN + colW, hdrY, colW, 20).fill('#334155')
-    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+     doc.rect(MARGIN,        hdrY, colW, 20).fill(WHITE).stroke(BORDER)
+     doc.rect(MARGIN + colW, hdrY, colW, 20).fill(SOFT_HEADER).stroke(BORDER)
+     doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold')
        .text('CLAIMED ON RESUME',    MARGIN + 10,        hdrY + 6, { width: colW - 20 })
-    doc.fillColor(WHITE).fontSize(8).font('Helvetica-Bold')
+     doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold')
        .text('INTERVIEW PERFORMANCE', MARGIN + colW + 10, hdrY + 6, { width: colW - 20 })
     doc.y = hdrY + 20
 
@@ -423,6 +671,118 @@ export function generateReportPDF(data: ReportData): Readable {
       scoreBar(doc, MARGIN + 160, rowY + 4, 180, 8, avg * 10, 60, color)
       doc.fillColor(color).fontSize(9).font('Helvetica-Bold').text(`${avg.toFixed(1)}/10`, MARGIN + 350, rowY + 2)
       doc.y = rowY + 20
+    }
+  }
+
+  // BEHAVIORAL + TECHNICAL SUMMARY TABLES
+  {
+    const gap = data.scorecard.gapAnalysis || {}
+    const audioAnswers = data.interviewPreviews.filter((p) => p.mode === 'AUDIO')
+    const hasComm = audioAnswers.length > 0
+    const avgComm = hasComm
+      ? audioAnswers.reduce((s, a) => s + (a.communicationScore || 0), 0) / audioAnswers.length
+      : 0
+    const avgWPM = hasComm
+      ? audioAnswers.reduce((s, a) => s + (a.wordsPerMinute || 0), 0) / audioAnswers.length
+      : 0
+    const avgFiller = hasComm
+      ? audioAnswers.reduce((s, a) => s + (a.fillerWordRatio || 0), 0) / audioAnswers.length
+      : 0
+    const avgSilence = hasComm
+      ? audioAnswers.reduce((s, a) => s + (a.silenceRatio || 0), 0) / audioAnswers.length
+      : 0
+    const avgDuration = hasComm
+      ? audioAnswers.reduce((s, a) => s + (a.durationSeconds || 0), 0) / audioAnswers.length
+      : 0
+
+    const bs = gap.behavioralScores || {}
+    const communicationScore = Number.isFinite(Number(bs.communication))
+      ? Math.max(0, Math.min(10, Number(bs.communication)))
+      : (hasComm ? avgComm : 6)
+    const confidenceScore = Number.isFinite(Number(bs.confidence))
+      ? Math.max(0, Math.min(10, Number(bs.confidence)))
+      : computeConfidenceScore(hasComm ? avgWPM : null, hasComm ? avgFiller : null, hasComm ? avgSilence : null, hasComm ? avgDuration : null)
+    const leadershipScore = Number.isFinite(Number(bs.leadership))
+      ? Math.max(0, Math.min(10, Number(bs.leadership)))
+      : (isCampus ? null : Math.max(0, Math.min(10, ((communicationScore + confidenceScore) / 2) - 0.2)))
+
+    pageCheck(doc, 170)
+    sectionTitle(doc, 'Behavioral Snapshot (Communication, Confidence, Leadership)')
+
+    const cardY = doc.y
+    const cardGap = 12
+    const cardW = (contentW(doc) - (cardGap * 2)) / 3
+    const cardH = 72
+
+    const drawBehaviorCard = (x: number, title: string, value: number | null) => {
+      const display = value == null ? 'N/A' : `${value.toFixed(1)}/10`
+      const color = value == null ? GRAY : (value >= 7 ? GREEN : value >= 5 ? AMBER : RED)
+      doc.rect(x, cardY, cardW, cardH).fill(LIGHT).stroke(BORDER)
+      doc.fillColor(LGRAY).fontSize(7.3).font('Helvetica-Bold').text(title.toUpperCase(), x + 10, cardY + 10)
+      doc.fillColor(color).fontSize(18).font('Helvetica-Bold').text(display, x + 10, cardY + 28)
+    }
+
+    drawBehaviorCard(MARGIN, 'Communication', communicationScore)
+    drawBehaviorCard(MARGIN + cardW + cardGap, 'Confidence', confidenceScore)
+    drawBehaviorCard(MARGIN + (cardW + cardGap) * 2, 'Leadership', leadershipScore)
+
+    const behavioralComment = String(bs.comment || gap.behavioralProfile || (isCampus
+      ? 'Leadership score may be intentionally light for campus profiles where evidence is limited.'
+      : 'Leadership is inferred from ownership depth, prioritization and decision quality in interview answers.'))
+    doc.y = cardY + cardH + 10
+    doc.fillColor(DARK).fontSize(8.5).font('Helvetica').text(behavioralComment, MARGIN, doc.y, { width: contentW(doc) })
+    doc.moveDown(0.9)
+
+    const technicalRows = collectTechnicalRows(gap, data.interviewPreviews)
+    if (technicalRows.length > 0) {
+      pageCheck(doc, 120)
+      sectionTitle(doc, 'Technical Skill Matrix')
+
+      const cols = {
+        skill: 170,
+        performance: 112,
+        comments: contentW(doc) - 170 - 112,
+      }
+
+      const drawTechnicalHeader = (y: number) => {
+        doc.rect(MARGIN, y, cols.skill, 24).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.skill, y, cols.performance, 24).fill(SOFT_HEADER).stroke(BORDER)
+        doc.rect(MARGIN + cols.skill + cols.performance, y, cols.comments, 24).fill(WHITE).stroke(BORDER)
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica-Bold').text('SKILL', MARGIN + 8, y + 9, { width: cols.skill - 12 })
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica-Bold').text('PERFORMANCE', MARGIN + cols.skill + 8, y + 9, { width: cols.performance - 12, align: 'center' })
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica-Bold').text('COMMENTS', MARGIN + cols.skill + cols.performance + 8, y + 9, { width: cols.comments - 12 })
+      }
+
+      let y = doc.y
+      drawTechnicalHeader(y)
+      y += 24
+      for (const row of technicalRows.slice(0, 10)) {
+        const rowH = 25
+        if (y + rowH > ph(doc) - 55) {
+          doc.addPage()
+          y = doc.y
+          drawTechnicalHeader(y)
+          y += 24
+        }
+
+        doc.rect(MARGIN, y, cols.skill, rowH).fill(WHITE).stroke(BORDER)
+        doc.rect(MARGIN + cols.skill, y, cols.performance, rowH).fill(LIGHT).stroke(BORDER)
+        doc.rect(MARGIN + cols.skill + cols.performance, y, cols.comments, rowH).fill(WHITE).stroke(BORDER)
+
+        doc.fillColor(DARK).fontSize(8.2).font('Helvetica').text(row.skill, MARGIN + 8, y + 8, { width: cols.skill - 12 })
+
+        const scoreLabel = row.label || scoreToPerformanceLabel(row.score)
+        const scoreColor = performanceColor(scoreLabel)
+        const pX = MARGIN + cols.skill + 12
+        doc.rect(pX, y + 5, cols.performance - 24, 14).fill(scoreColor)
+        doc.fillColor(WHITE).fontSize(7).font('Helvetica-Bold').text(`${scoreLabel} (${row.score.toFixed(1)}/10)`, pX, y + 9, { width: cols.performance - 24, align: 'center' })
+
+        doc.fillColor(DARK).fontSize(7.8).font('Helvetica').text(row.comment, MARGIN + cols.skill + cols.performance + 8, y + 8, { width: cols.comments - 12, ellipsis: true })
+
+        y += rowH
+      }
+
+      doc.y = y + 8
     }
   }
 
@@ -474,50 +834,93 @@ export function generateReportPDF(data: ReportData): Readable {
 
     const scorableAnswers = data.interviewPreviews.filter(p => p.prompt || p.liveCodingProblem)
     const lowestAnswer = [...scorableAnswers].filter(a => a.aiScore != null).sort((a, b) => (a.aiScore!) - (b.aiScore!))[0]
+    const followUpResponseIndexes = new Set<number>()
 
-    for (const ia of scorableAnswers) {
-      pageCheck(doc, 140)
+    for (let i = 0; i < scorableAnswers.length - 1; i += 1) {
+      const current = scorableAnswers[i]
+      const next = scorableAnswers[i + 1]
+      const currentQuestion = current.prompt || current.liveCodingProblem || ''
+      const nextQuestion = next.prompt || next.liveCodingProblem || ''
+
+      if (current.isFollowUp && currentQuestion && currentQuestion === nextQuestion) {
+        followUpResponseIndexes.add(i + 1)
+      }
+    }
+
+    for (let idx = 0; idx < scorableAnswers.length; idx += 1) {
+      const ia = scorableAnswers[idx]
+      pageCheck(doc, 185)
       const aY = doc.y
       
       const scoreColor = (ia.aiScore ?? 0) >= 7 ? GREEN : (ia.aiScore ?? 0) >= 4 ? AMBER : RED
-      doc.rect(MARGIN, aY, 4, 150).fill(scoreColor) // We will adjust height later if needed
+      doc.rect(MARGIN + 4, aY, contentW(doc) - 4, 150).fill('#F8FAFC').stroke(BORDER)
+      doc.rect(MARGIN, aY, 4, 150).fill(scoreColor) // Adjusted after full content render
+      const scoreLabel = ia.aiScore != null ? `${ia.aiScore.toFixed(1)}/10` : 'N/A'
+      const isFollowUpResponse = followUpResponseIndexes.has(idx)
+      const previousAnswer = idx > 0 ? scorableAnswers[idx - 1] : null
 
       let currentX = MARGIN + 12
+      const chipY = aY + 2
+
+      // Question number badge
+      pill(doc, currentX, chipY, 34, 14, `Q${idx + 1}`, SOFT_HEADER, DARK)
+      currentX += 40
+
+      // Follow-up marker
+      if (isFollowUpResponse) {
+        pill(doc, currentX, chipY, 78, 14, 'FOLLOW-UP', ORANGE)
+        currentX += 84
+      }
       
       // Category Badge
       if (ia.category) {
-        pill(doc, currentX, aY, 80, 14, ia.category, TEAL)
+        pill(doc, currentX, chipY, 80, 14, ia.category, TEAL)
         currentX += 86
       }
       
       // Mode Badge
-      pill(doc, currentX, aY, 70, 14, ia.mode || 'TEXT', GRAY)
+      pill(doc, currentX, chipY, 70, 14, ia.mode || 'TEXT', GRAY)
       currentX += 76
+
+      // Per-question score badge
+      pill(doc, pw(doc) - MARGIN - 74, chipY, 64, 14, scoreLabel, scoreColor)
 
       // Lowest score banner
       if (ia === lowestAnswer && (ia.aiScore ?? 0) <= 5) {
-        doc.rect(currentX, aY, 110, 14).fill('#FEF2F2').stroke(RED)
-        doc.fillColor(RED).fontSize(7).font('Helvetica-Bold').text('! CRITICAL GAP', currentX, aY + 4, { width: 110, align: 'center' })
+        const criticalX = Math.min(currentX, pw(doc) - MARGIN - 74 - 116)
+        doc.rect(criticalX, chipY, 110, 14).fill('#FEF2F2').stroke(RED)
+        doc.fillColor(RED).fontSize(7).font('Helvetica-Bold').text('! CRITICAL GAP', criticalX, chipY + 4, { width: 110, align: 'center' })
       }
 
-      doc.y = aY + 20
+      doc.y = aY + 24
+
+      if (isFollowUpResponse) {
+        const followUpPrompt = previousAnswer?.followUpPrompt?.trim() || 'Dynamic follow-up based on previous answer.'
+        const followY = doc.y
+        const followH = Math.max(28, doc.heightOfString(followUpPrompt, { width: contentW(doc) - 34, lineGap: 1 }) + 12)
+        doc.rect(MARGIN + 12, followY, contentW(doc) - 20, followH).fill('#FFF7ED').stroke('#FDBA74')
+        doc.fillColor(ORANGE).fontSize(7.5).font('Helvetica-Bold').text('FOLLOW-UP QUESTION', MARGIN + 18, followY + 6)
+        doc.fillColor(DARK).fontSize(8).font('Helvetica-Oblique').text(followUpPrompt, MARGIN + 18, followY + 15, { width: contentW(doc) - 34, lineGap: 1 })
+        doc.y = followY + followH + 6
+      }
 
       // PROMPT or LIVE CODING PROBLEM
       const isLiveCoding = ia.mode.includes('LIVE_CODING')
-      doc.fillColor(DARK).fontSize(9).font('Helvetica-Bold').text(ia.prompt || ia.liveCodingProblem || 'Question Context', MARGIN + 12, doc.y, { width: contentW(doc) - 20 })
-      doc.moveDown(0.4)
+      doc.fillColor(DARK).fontSize(9.3).font('Helvetica-Bold').text(ia.prompt || ia.liveCodingProblem || 'Question Context', MARGIN + 12, doc.y, { width: contentW(doc) - 20, lineGap: 1 })
+      doc.moveDown(0.45)
 
       // GREEN AND RED FLAG RUBRIC
       if (ia.evaluationRubric) {
-        doc.fillColor(GREEN).fontSize(7.5).font('Helvetica-Bold').text('GREEN FLAG: ', MARGIN + 12, doc.y, { continued: true })
-        doc.fillColor(DARK).font('Helvetica').text(ia.evaluationRubric.substring(0, 150) + '...', { width: contentW(doc) - 20 })
+        doc.fillColor(GREEN).fontSize(7.5).font('Helvetica-Bold').text('GREEN FLAG', MARGIN + 12, doc.y)
+        doc.fillColor(DARK).fontSize(8).font('Helvetica').text(ia.evaluationRubric.substring(0, 170) + '...', MARGIN + 12, doc.y + 10, { width: contentW(doc) - 20, lineGap: 1 })
+        doc.y += 10
       }
       doc.moveDown(0.6)
 
       if (isLiveCoding && ia.codeSubmission) {
         doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold').text('SUBMITTED CODE:', MARGIN + 12, doc.y)
-        doc.rect(MARGIN + 12, doc.y + 4, contentW(doc) - 20, 40).fill(NAVY)
-        doc.fillColor(GREEN).fontSize(7).font('Courier').text(ia.codeSubmission.substring(0, 300) + (ia.codeSubmission.length > 300 ? '...' : ''), MARGIN + 16, doc.y + 8, { width: contentW(doc) - 28 })
+        doc.rect(MARGIN + 12, doc.y + 4, contentW(doc) - 20, 40).fill(SOFT_HEADER).stroke(BORDER)
+        doc.fillColor('#166534').fontSize(7).font('Courier').text(ia.codeSubmission.substring(0, 300) + (ia.codeSubmission.length > 300 ? '...' : ''), MARGIN + 16, doc.y + 8, { width: contentW(doc) - 28 })
         doc.y += 48
         
         doc.fillColor(DARK).fontSize(8).font('Helvetica-Bold').text(`TEST CASES: ${ia.testCasesPassed ?? 0} / ${ia.testCasesTotal ?? 0} PASSED`, MARGIN + 12, doc.y)
@@ -526,12 +929,17 @@ export function generateReportPDF(data: ReportData): Readable {
 
       // ANSWER TRANSCRIPT
       const previewText = ia.explainTranscript || ia.answerPreview || 'No response recorded.'
-      doc.fillColor(GRAY).fontSize(8.5).font('Helvetica-Oblique').text(`"${previewText}"`, MARGIN + 12, doc.y, { width: contentW(doc) - 20 })
+      const previewY = doc.y
+      const previewH = Math.max(30, doc.heightOfString(`"${previewText}"`, { width: contentW(doc) - 32, lineGap: 1 }) + 12)
+      doc.rect(MARGIN + 12, previewY, contentW(doc) - 20, previewH).fill('#F1F5F9').stroke(BORDER)
+      doc.fillColor(GRAY).fontSize(8.4).font('Helvetica-Oblique').text(`"${previewText}"`, MARGIN + 18, previewY + 6, { width: contentW(doc) - 32, lineGap: 1 })
+      doc.y = previewY + previewH
 
       if (ia.aiReasoning) {
-        doc.moveDown(0.5)
-        doc.fillColor('#0E7490').fontSize(8).font('Helvetica-Bold').text('AI EVALUATION:', MARGIN + 12, doc.y, { continued: true })
-        doc.fillColor(DARK).font('Helvetica').text(` ${ia.aiReasoning}`, { width: contentW(doc) - 20 })
+        doc.moveDown(0.45)
+        doc.fillColor('#0E7490').fontSize(8).font('Helvetica-Bold').text('AI EVALUATION', MARGIN + 12, doc.y)
+        doc.fillColor(DARK).fontSize(8.2).font('Helvetica').text(ia.aiReasoning, MARGIN + 12, doc.y + 10, { width: contentW(doc) - 20, lineGap: 1.2 })
+        doc.y += 8
       }
 
       // COPY PASTE BANNER
@@ -542,7 +950,7 @@ export function generateReportPDF(data: ReportData): Readable {
         doc.y += 24
       }
 
-      doc.moveDown(0.8)
+      doc.moveDown(0.75)
       
       const mY = doc.y
       const rowScores: any[] = []
@@ -569,8 +977,8 @@ export function generateReportPDF(data: ReportData): Readable {
       const endY = doc.y
       doc.rect(MARGIN, aY, 4, endY - aY).fill(scoreColor)
 
-      hRule(doc, BG2)
-      doc.moveDown(0.8)
+      hRule(doc, BORDER)
+      doc.moveDown(0.95)
     }
   }
 
@@ -630,7 +1038,7 @@ export function generateReportPDF(data: ReportData): Readable {
   if (data.scorecard.gapAnalysis?.behavioralProfile) {
     pageCheck(doc, 60)
     sectionTitle(doc, 'Behavioral & Communication Profile')
-    doc.fillColor(DARK).fontSize(9.5).text(data.scorecard.gapAnalysis.behavioralProfile, MARGIN, doc.y, { width: contentW(doc) })
+    doc.fillColor(DARK).fontSize(9.5).font('Helvetica').text(data.scorecard.gapAnalysis.behavioralProfile, MARGIN, doc.y, { width: contentW(doc), lineGap: 1.5 })
     doc.moveDown(1.5)
   }
 
@@ -676,7 +1084,7 @@ export function generateReportPDF(data: ReportData): Readable {
 
   const chkY = doc.y
   doc.rect(MARGIN, chkY, contentW(doc), 110).fill(LIGHT).stroke(BORDER)
-  doc.rect(MARGIN, chkY, 4, 110).fill(NAVY)
+  doc.rect(MARGIN, chkY, 4, 110).fill(trackAccent)
 
   let leftY  = chkY + 18
   let rightY = chkY + 18
@@ -713,13 +1121,13 @@ export function generateReportPDF(data: ReportData): Readable {
   for (let i = 0; i < totalPages; i++) {
     (doc as any).switchToPage(range.start + i)
 
-    const barY = ph(doc) - 28   // 28px navy bar anchored to page bottom
+    const barY = ph(doc) - 28   // 28px footer bar anchored to page bottom
     const txtY = barY + 10      // ~vertically centred for 7.5pt font
 
-    doc.rect(0, barY, pw(doc), 28).fill(NAVY)
+    doc.rect(0, barY, pw(doc), 28).fill(WHITE).stroke(BORDER)
 
     doc.fontSize(7.5).font('Helvetica').fillColor('#94A3B8')
-    const footerText = `Indium AI  |  Confidential  |  ${footerName}  |  Page ${i + 1} of ${totalPages}`
+    const footerText = `ihire  |  Confidential  |  ${footerName}  |  Page ${i + 1} of ${totalPages}`
     const txtX = (pw(doc) - doc.widthOfString(footerText)) / 2
     doc.text(footerText, txtX, txtY, { lineBreak: false })
 

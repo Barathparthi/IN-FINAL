@@ -11,7 +11,7 @@ async function main() {
   console.log(JSON.stringify(users.map(u => ({
     email: u.email,
     role: u.role,
-    status: u.candidateProfile?.status || 'N/A',
+    status: u.candidateProfile?.[0]?.status || 'N/A',
     isActive: u.isActive,
     mustChangePassword: u.mustChangePassword
   })), null, 2))

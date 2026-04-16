@@ -7,6 +7,43 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { candidateApi } from '../../services/api.services'
 import toast from 'react-hot-toast'
 
+const OTP_AUTO_SEND_COOLDOWN_MS = 45_000
+const OTP_AUTO_SEND_KEY_PREFIX = 'kyc-otp-auto-sent-at:'
+
+function getOtpAutoSendKey(candidateId: string) {
+  return `${OTP_AUTO_SEND_KEY_PREFIX}${candidateId}`
+}
+
+function wasOtpAutoSentRecently(candidateId: string) {
+  if (typeof window === 'undefined') return false
+  try {
+    const raw = window.sessionStorage.getItem(getOtpAutoSendKey(candidateId))
+    if (!raw) return false
+    const sentAt = Number(raw)
+    return Number.isFinite(sentAt) && (Date.now() - sentAt) < OTP_AUTO_SEND_COOLDOWN_MS
+  } catch {
+    return false
+  }
+}
+
+function markOtpAutoSent(candidateId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(getOtpAutoSendKey(candidateId), String(Date.now()))
+  } catch {
+    // Ignore storage errors and continue.
+  }
+}
+
+function clearOtpAutoSentMark(candidateId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(getOtpAutoSendKey(candidateId))
+  } catch {
+    // Ignore storage errors and continue.
+  }
+}
+
 export default function IdentityVerificationPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -46,10 +83,14 @@ export default function IdentityVerificationPage() {
 
   // Auto-send OTP on mount if not verified
   useEffect(() => {
-    if (profile && !profile.kycVerifiedAt && step === 'otp' && !sendOtpMutation.isPending && !sendOtpMutation.isSuccess) {
-      sendOtpMutation.mutate()
-    }
-  }, [profile, step])
+    if (!profile?.id || profile.kycVerifiedAt || step !== 'otp') return
+    if (wasOtpAutoSentRecently(profile.id)) return
+
+    markOtpAutoSent(profile.id)
+    sendOtpMutation.mutate(undefined, {
+      onError: () => clearOtpAutoSentMark(profile.id)
+    })
+  }, [profile?.id, profile?.kycVerifiedAt, step])
 
   const handleEnrollComplete = () => {
     setEnrolled(true)
@@ -137,7 +178,14 @@ export default function IdentityVerificationPage() {
                   className="btn btn-ghost btn-sm"
                   style={{ width: '100%' }}
                   disabled={sendOtpMutation.isPending}
-                  onClick={() => sendOtpMutation.mutate()}
+                  onClick={() => {
+                    if (profile?.id) markOtpAutoSent(profile.id)
+                    sendOtpMutation.mutate(undefined, {
+                      onError: () => {
+                        if (profile?.id) clearOtpAutoSentMark(profile.id)
+                      }
+                    })
+                  }}
                 >
                   <RefreshCcw size={14} className={sendOtpMutation.isPending ? 'spin' : ''} /> Resend Code
                 </button>

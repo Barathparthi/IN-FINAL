@@ -328,6 +328,8 @@ export async function submitInterviewAnswer(
   }
 
   const answerText = input.textAnswer || sttTranscript || ''
+  const askedPrompt = input.askedPrompt?.trim()
+  const promptForEvaluation = askedPrompt || question.prompt || ''
 
   // Recalculate delivery metrics if we have a transcript + duration
   let metrics = {
@@ -361,7 +363,7 @@ export async function submitInterviewAnswer(
     : (question.followUpPrompts as any[])?.[0]?.category || undefined
 
   const evaluation = await evaluateInterviewAnswer({
-    prompt: question.prompt!,
+    prompt: promptForEvaluation,
     answer: answerText,
     rubric: question.evaluationRubric!,
     role: attempt.candidate.campaign.role,
@@ -369,6 +371,11 @@ export async function submitInterviewAnswer(
     topicTag,
     depth: (attempt as any).round?.roundConfig?.depth || 'DEEP',
   })
+
+  // Only ask a follow-up for a primary question response, not for a follow-up response.
+  const generatedFollowUp = !askedPrompt && evaluation.followUp?.trim()
+    ? evaluation.followUp.trim()
+    : undefined
 
   // Combine content score (AI) + delivery score (frontend computed)
   // Content = 75% weight, Delivery = 25% weight for AUDIO mode
@@ -378,7 +385,7 @@ export async function submitInterviewAnswer(
     ? (contentScore * 0.75) + (deliveryScore * 0.25)
     : contentScore
 
-  return prisma.interviewAnswer.create({
+  const answer = await prisma.interviewAnswer.create({
     data: {
       attemptId: input.attemptId,
       questionId: input.questionId,
@@ -390,7 +397,7 @@ export async function submitInterviewAnswer(
       aiReasoning: deliveryScore !== null
         ? `Content: ${contentScore.toFixed(1)}/10 | Delivery: ${deliveryScore.toFixed(1)}/10 | Combined: ${finalScore.toFixed(1)}/10\n\n${evaluation.reasoning}`
         : evaluation.reasoning,
-      aiFollowUpAsked: evaluation.followUp,
+      aiFollowUpAsked: generatedFollowUp,
       timeTakenSeconds: input.timeTakenSeconds,
       // Delivery metrics
       durationSeconds: metrics.durationSeconds,
@@ -407,6 +414,11 @@ export async function submitInterviewAnswer(
       confidenceScore: evaluation.confidence,
     },
   })
+
+  return {
+    ...answer,
+    followUp: generatedFollowUp || null,
+  }
 }
 
 // ── Submit LIVE_CODING — Phase 1: submit code ─────────────────
@@ -470,6 +482,8 @@ export async function submitLiveCodingExplanation(input: {
   attemptId: string
   answerId: string
   questionId: string
+  askedPrompt?: string
+  sttTranscript?: string
   audioBuffer: Buffer  // raw audio from MediaRecorder
 }) {
   await enforceTimeLimit(input.attemptId)
@@ -494,8 +508,12 @@ export async function submitLiveCodingExplanation(input: {
 
   const depth = (attempt.round.roundConfig as any)?.depth || 'DEEP'
 
-  // Step 1: Transcribe audio via Groq Whisper
-  const { text: transcript } = await transcribeAudio(input.audioBuffer)
+  // Step 1: Use verified transcript if available, else transcribe audio via Whisper
+  let transcript = input.sttTranscript?.trim() || ''
+  if (!transcript) {
+    const result = await transcribeAudio(input.audioBuffer)
+    transcript = result.text
+  }
 
   // Step 2: AI evaluates explanation against actual code
   const evaluation = await evaluateCodeExplanation({
@@ -512,6 +530,9 @@ export async function submitLiveCodingExplanation(input: {
   const codeScore = existing.codeScore || 0
   const explainScore = evaluation.score
   const finalScore = (codeScore * 0.6) + (explainScore * 0.4)
+  const generatedFollowUp = !input.askedPrompt?.trim() && evaluation.followUp?.trim()
+    ? evaluation.followUp.trim()
+    : undefined
 
   // Update the answer record
   await prisma.interviewAnswer.update({
@@ -521,7 +542,7 @@ export async function submitLiveCodingExplanation(input: {
       explainScore: explainScore,
       aiScore: finalScore,
       aiReasoning: `Code: ${codeScore}/10 (Judge0 test cases) | Explanation: ${explainScore}/10 (AI evaluation) | Combined: ${finalScore.toFixed(1)}/10\n\n${evaluation.reasoning}`,
-      aiFollowUpAsked: evaluation.followUp,
+      aiFollowUpAsked: generatedFollowUp,
     },
   })
 
@@ -532,6 +553,7 @@ export async function submitLiveCodingExplanation(input: {
     copiedCodeSignal: evaluation.copiedCodeSignal,
     reasoning: evaluation.reasoning,
     transcript,
+    followUp: generatedFollowUp || null,
   }
 }
 
@@ -565,7 +587,7 @@ export async function completeAttempt(attemptId: string, candidateId: string) {
 
   const round = await prisma.pipelineRound.findUnique({
     where: { id: attempt.roundId },
-    select: { roundConfig: true, passMarkPercent: true, roundType: true },
+    select: { roundConfig: true, passMarkPercent: true, roundType: true, failAction: true },
   })
   const cfg = (round?.roundConfig as any) || {}
 
@@ -609,7 +631,7 @@ export async function completeAttempt(attemptId: string, candidateId: string) {
   })
 
   // Auto-advance or auto-reject based on pass/fail
-  const failAction = cfg.failAction || 'MANUAL_REVIEW'
+  const failAction = round?.failAction || cfg.failAction || 'MANUAL_REVIEW'
   const candidate = await prisma.candidateProfile.findUniqueOrThrow({
     where: { id: candidateId }, select: { campaignId: true },
   })

@@ -96,6 +96,7 @@ export async function updateCampaign(id: string, input: z.infer<typeof CreateCam
             order:            r.order,
             timeLimitMinutes: r.timeLimitMinutes ?? null,
             passMarkPercent:  r.passMarkPercent ?? null,
+            failAction:       (r as any).failAction ?? 'MANUAL_REVIEW',
           }
         })
       } else {

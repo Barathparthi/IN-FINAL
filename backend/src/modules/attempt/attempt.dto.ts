@@ -25,6 +25,7 @@ export const SubmitInterviewDto = z.object({
   attemptId:        z.string().uuid(),
   questionId:       z.string().uuid(),
   mode:             z.enum(['TEXT', 'AUDIO']).optional(),
+  askedPrompt:      z.string().optional(),
   textAnswer:       z.string().optional(),
   audioUrl:         z.string().optional(),
   sttTranscript:    z.string().optional(),
@@ -55,6 +56,8 @@ export const SubmitLiveCodingExplainDto = z.object({
   attemptId:  z.string().uuid(),
   answerId:   z.string().uuid(),
   questionId: z.string().uuid(),
+  askedPrompt: z.string().optional(),
+  sttTranscript: z.string().optional(),
   audioUrl:   z.string().optional(),
 })
 

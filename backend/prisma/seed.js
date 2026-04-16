@@ -10,20 +10,20 @@ const prisma = new client_1.PrismaClient();
 //  SEED DATA
 // ─────────────────────────────────────────────
 const ADMIN = {
-    email: 'admin@smarthire.dev',
+    email: 'admin@indium.dev',
     password: 'Admin@1234',
     firstName: 'Platform',
     lastName: 'Admin',
 };
 const RECRUITER = {
-    email: 'recruiter@smarthire.dev',
+    email: 'recruiter@indium.dev',
     password: 'Recruiter@1234',
     firstName: 'Sarah',
     lastName: 'Mitchell',
     department: 'Engineering',
 };
 const CANDIDATE = {
-    email: 'candidate@smarthire.dev',
+    email: 'candidate@indium.dev',
     password: 'Candidate@1234',
     firstName: 'Arjun',
     lastName: 'Sharma',
@@ -119,7 +119,7 @@ function log(msg) {
 //  MAIN
 // ─────────────────────────────────────────────
 async function main() {
-    console.log('\n🌱  SmartHire AI — database seed\n');
+    console.log('\n🌱  indium AI — database seed\n');
     // ── 1. Admin ────────────────────────────────
     const adminUser = await prisma.user.upsert({
         where: { email: ADMIN.email },
