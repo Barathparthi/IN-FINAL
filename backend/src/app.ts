@@ -7,6 +7,7 @@ import compression from 'compression'
 import { apiReference } from '@scalar/express-api-reference'
 import { authLimiter, apiLimiter } from './middlewares/rateLimiter.middleware'
 import { errorHandler } from './middlewares/error.middleware'
+import { env } from './config/env'
 
 import { authRouter }       from './modules/auth/auth.routes'
 import { adminRouter }      from './modules/admin/admin.routes'
@@ -23,21 +24,23 @@ import path from 'path'
 
 const app = express()
 
+app.disable('x-powered-by')
+
 // Trust proxy is essential behind Nginx/Heroku/Vercel for rate limiting
-app.set('trust proxy', 1)
+app.set('trust proxy', env.TRUST_PROXY)
 
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }))
-const clientUrlRaw = process.env.CLIENT_URL || process.env.FRONTEND_URL || ''
+const clientUrlRaw = env.CLIENT_URL || env.FRONTEND_URL || ''
 const corsOrigins = clientUrlRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
 app.use(cors({ 
-  origin: corsOrigins.length > 0 ? corsOrigins : true, 
+  origin: env.CORS_ALLOW_ALL || corsOrigins.length === 0 ? true : corsOrigins,
   credentials: true 
 }))
 app.use(compression()) // Compress responses
-app.use(express.json({ limit: '10mb' }))
+app.use(express.json({ limit: env.JSON_LIMIT }))
 app.use(express.urlencoded({ extended: true }))
 
-const logFormat = process.env.NODE_ENV === 'production' ? 'combined' : 'dev'
+const logFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev'
 app.use(morgan(logFormat))
 
 // Static files (resumes, proctoring snapshots, etc.)
@@ -59,10 +62,12 @@ const scalarDocsCsp = [
   "connect-src 'self' https:",
 ].join('; ')
 
-app.use('/docs', (req, res, next) => {
-  res.setHeader('Content-Security-Policy', scalarDocsCsp)
-  next()
-}, apiReference({ url: '/openapi.json'}))
+if (env.ENABLE_API_DOCS) {
+  app.use('/docs', (req, res, next) => {
+    res.setHeader('Content-Security-Policy', scalarDocsCsp)
+    next()
+  }, apiReference({ url: '/openapi.json'}))
+}
 
 // Apply auth limiter to auth routes first
 app.use('/api/auth', authLimiter, authRouter)

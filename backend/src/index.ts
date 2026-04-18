@@ -4,13 +4,14 @@ import app from './app'
 import { prisma } from './lib/prisma'
 import { logger } from './lib/logger'
 import { initProctoringGateway } from './modules/proctoring/proctoring.gateway'
+import { env } from './config/env'
 
 // Register background jobs (pure Node.js — no Redis needed)
 import './jobs/pool-generation.job'
 import './jobs/gap-analysis.job'
 import './jobs/jwt-cleanup.job'
 
-const PORT = process.env.PORT || 4000
+const PORT = Number(env.PORT) || 4000
 
 let httpServer: http.Server
 
@@ -25,7 +26,7 @@ async function bootstrap() {
   logger.info('✅ Background jobs registered (in-process, no Redis)')
 
   httpServer.listen(PORT, () => {
-    logger.info(`🚀 Indium API on port ${PORT} [${process.env.NODE_ENV}]`)
+    logger.info(`🚀 Indium API on port ${PORT} [${env.NODE_ENV}]`)
   })
 }
 

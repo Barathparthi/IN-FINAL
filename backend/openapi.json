@@ -2128,6 +2128,9 @@
     "/api/scorecard/{candidateId}/download": {
       "get": {
         "description": "",
+        "produces": [
+          "application/pdf"
+        ],
         "parameters": [
           {
             "name": "candidateId",

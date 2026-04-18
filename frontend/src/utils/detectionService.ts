@@ -9,9 +9,10 @@
 import * as faceapi from '@vladmandic/face-api';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
+import { ENV } from '../config/env.config';
 
 // ── Thresholds ────────────────────────────────────────────────────────
-const FACE_MODEL_URL = 'https://vladmandic.github.io/face-api/model';
+const FACE_MODEL_URL = ENV.FACE_MODEL_URL;
 export const FACE_MATCH_THRESHOLD = 0.50;  // euclidean distance — lower = stricter
 export const PHONE_CONFIDENCE     = 0.60;
 export const PERSON_CONFIDENCE    = 0.70;

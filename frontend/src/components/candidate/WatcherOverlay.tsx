@@ -4,6 +4,7 @@ import { uploadToCloudinary } from '../../utils/cloudinary.util'
 import { FilesetResolver, FaceLandmarker, ObjectDetector } from '@mediapipe/tasks-vision'
 import { Peer } from 'peerjs'
 import toast from 'react-hot-toast'
+import { ENV } from '../../config/env.config'
 
 interface WatcherOverlayProps {
   candidateId: string
@@ -61,12 +62,12 @@ export default function WatcherOverlay({ candidateId, attemptId, onStrike, disab
 
     async function loadMediaPipe() {
       try {
-        const vision = await FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm')
+        const vision = await FilesetResolver.forVisionTasks(ENV.MEDIAPIPE_VISION_WASM_URL)
         if (isCancelled) return
 
         const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+            modelAssetPath: ENV.MEDIAPIPE_FACE_LANDMARKER_MODEL_URL,
             delegate: 'GPU'
           },
           outputFaceBlendshapes: false,
@@ -76,11 +77,11 @@ export default function WatcherOverlay({ candidateId, attemptId, onStrike, disab
 
         const objectDetector = await ObjectDetector.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/float16/1/efficientdet_lite0.task',
+            modelAssetPath: ENV.MEDIAPIPE_OBJECT_DETECTOR_MODEL_URL,
             delegate: 'GPU'
           },
           runningMode: 'VIDEO',
-          scoreThreshold: 0.5
+          scoreThreshold: ENV.MEDIAPIPE_OBJECT_SCORE_THRESHOLD
         })
 
         if (!isCancelled) {

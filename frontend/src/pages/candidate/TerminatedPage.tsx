@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ShieldAlert, AlertTriangle } from 'lucide-react'
 
 export default function TerminatedPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const [secondsLeft, setSecondsLeft] = useState(10)
   
   // Might receive type = 'proctoring' | 'failed' + reason
   const type = location.state?.type || 'proctoring'
@@ -17,6 +19,21 @@ export default function TerminatedPage() {
       navigate('/login')
     }
   }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    const timeout = setTimeout(() => {
+      handleExit()
+    }, 10000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [])
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -43,6 +60,14 @@ export default function TerminatedPage() {
             </p>
           </>
         )}
+
+        <div style={{
+          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 18,
+          fontSize: '0.85rem', color: 'var(--text-secondary)',
+        }}>
+          You will be redirected to login in <strong style={{ color: 'var(--text-primary)' }}>{secondsLeft}</strong> second{secondsLeft !== 1 ? 's' : ''}.
+        </div>
 
         <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleExit}>
           {isElectron ? 'Exit Assessment App' : 'Return to Login'}

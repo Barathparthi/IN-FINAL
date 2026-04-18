@@ -40,6 +40,15 @@ const defaultForm: CampaignFormData = {
   followUpEnabled: true,
 }
 
+function resolveHiringType(camp: any): 'CAMPUS' | 'LATERAL' {
+  if (camp?.hiringType === 'CAMPUS' || camp?.hiringType === 'LATERAL') {
+    return camp.hiringType
+  }
+
+  const rounds = camp?.rounds?.length ? camp.rounds : (camp?.pipelineConfig?.rounds || [])
+  return rounds.some((r: any) => r?.roundType === 'MCQ') ? 'CAMPUS' : 'LATERAL'
+}
+
 export default function EditCampaignPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -57,12 +66,14 @@ export default function EditCampaignPage() {
 
   useEffect(() => {
     if (camp && !isHydrated) {
+      const hiringType = resolveHiringType(camp)
+
       setForm({
         name: camp.name || '',
         role: camp.role || '',
         department: camp.department || '',
         jobDescription: camp.jobDescription || '',
-        hiringType: camp.hiringType,
+        hiringType,
         expiresAt: camp.expiresAt ? new Date(camp.expiresAt).toISOString().split('T')[0] : undefined,
         maxCandidates: camp.maxCandidates || undefined,
         rounds: (camp.rounds?.length ? camp.rounds : (camp.pipelineConfig?.rounds || [])).map((r: any) => {
@@ -101,6 +112,7 @@ export default function EditCampaignPage() {
   const hasInterviewRound = form.rounds.some(
     r => r.roundType === 'INTERVIEW'
   )
+  const resolvedHiringType: 'CAMPUS' | 'LATERAL' = form.hiringType || 'LATERAL'
 
   const { mutate: submit, isPending } = useMutation({
     mutationFn: () => {
@@ -109,7 +121,7 @@ export default function EditCampaignPage() {
         role: form.role,
         department: form.department || undefined,
         jobDescription: form.jobDescription,
-        hiringType: form.hiringType,
+        hiringType: resolvedHiringType,
         expiresAt: (form.expiresAt && form.expiresAt.trim() !== '') ? new Date(form.expiresAt).toISOString() : null,
         maxCandidates: form.maxCandidates || undefined,
         pipelineConfig: {
@@ -231,7 +243,7 @@ export default function EditCampaignPage() {
       {/* Step Content */}
       <div className="card slide-up" key={step}>
         {step === 0 && <Step1Meta {...stepProps} />}
-        {step === 1 && <Step2Pipeline {...stepProps} />}
+        {step === 1 && <Step2Pipeline {...stepProps} hiringType={resolvedHiringType} />}
         {step === 2 && <Step3RoundConfig {...stepProps} />}
         {step === 3 && <Step4InterviewConfig {...stepProps} hasInterviewRound={hasInterviewRound} />}
         {step === 4 && <Step5Proctoring {...stepProps} />}

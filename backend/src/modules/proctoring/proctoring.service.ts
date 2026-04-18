@@ -2,6 +2,7 @@ import { prisma } from '../../lib/prisma'
 import { blacklistToken } from '../../lib/jwt'
 import { emitStrikeToRecruiters, emitTermination } from './proctoring.gateway'
 import cloudinary from '../../lib/cloudinary'
+import { env } from '../../config/env'
 
 const STRIKE_VIOLATIONS = ['PHONE_DETECTED','FACE_AWAY','MULTIPLE_FACES','TAB_SWITCH','FOCUS_LOSS','BACKGROUND_VOICE']
 
@@ -9,13 +10,13 @@ export async function getCloudinarySignature(params: any = {}) {
   const timestamp = Math.round(new Date().getTime() / 1000)
   const signature = cloudinary.utils.api_sign_request(
     { ...params, timestamp },
-    process.env.CLOUDINARY_API_SECRET!
+    env.CLOUDINARY_API_SECRET
   )
   return { 
     signature, 
     timestamp, 
-    apiKey: process.env.CLOUDINARY_API_KEY, 
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME 
+    apiKey: env.CLOUDINARY_API_KEY,
+    cloudName: env.CLOUDINARY_CLOUD_NAME
   }
 }
 

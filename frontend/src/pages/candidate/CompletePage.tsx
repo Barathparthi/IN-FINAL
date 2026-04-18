@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { CheckCircle, Clock, ArrowLeft } from 'lucide-react'
 
@@ -5,6 +6,7 @@ export default function CompletePage() {
   const navigate    = useNavigate()
   const location    = useLocation()
   const pendingReview = location.state?.pendingReview || false
+  const [secondsLeft, setSecondsLeft] = useState(10)
 
   const isElectron = !!(window as any).electronBridge?.isElectron
   const handleExit = () => {
@@ -14,6 +16,21 @@ export default function CompletePage() {
       navigate('/login')
     }
   }
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => (prev > 0 ? prev - 1 : 0))
+    }, 1000)
+
+    const timeout = setTimeout(() => {
+      handleExit()
+    }, 10000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(timeout)
+    }
+  }, [])
 
   return (
     <div style={{
@@ -89,6 +106,14 @@ export default function CompletePage() {
             </div>
           </>
         )}
+
+        <div style={{
+          background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+          borderRadius: 10, padding: '12px 16px', marginBottom: 18,
+          fontSize: '0.85rem', color: 'var(--text-secondary)',
+        }}>
+          You will be redirected to login in <strong style={{ color: 'var(--text-primary)' }}>{secondsLeft}</strong> second{secondsLeft !== 1 ? 's' : ''}.
+        </div>
 
         <button
           className="btn btn-outline"

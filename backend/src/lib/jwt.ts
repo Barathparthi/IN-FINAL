@@ -2,6 +2,7 @@ import 'dotenv/config'
 import jwt from 'jsonwebtoken'
 import { prisma } from './prisma'
 import type { Role } from '@prisma/client'
+import { jwtConfig } from '../config/jwt.config'
 
 export interface JWTPayload {
   sub:          string
@@ -12,23 +13,23 @@ export interface JWTPayload {
 }
 
 export function signAccessToken(payload: Omit<JWTPayload, 'iat' | 'exp'>): string {
-  return jwt.sign(payload, process.env.JWT_SECRET as string, {
-    expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as any,
+  return jwt.sign(payload, jwtConfig.secret, {
+    expiresIn: jwtConfig.expiresIn as any,
   })
 }
 
 export function signRefreshToken(userId: string): string {
-  return jwt.sign({ sub: userId }, process.env.JWT_REFRESH_SECRET as string, {
-    expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as any,
+  return jwt.sign({ sub: userId }, jwtConfig.refreshSecret, {
+    expiresIn: jwtConfig.refreshExpiresIn as any,
   })
 }
 
 export function verifyAccessToken(token: string): JWTPayload {
-  return jwt.verify(token, process.env.JWT_SECRET as string) as JWTPayload
+  return jwt.verify(token, jwtConfig.secret) as JWTPayload
 }
 
 export function verifyRefreshToken(token: string): { sub: string } {
-  return jwt.verify(token, process.env.JWT_REFRESH_SECRET as string) as { sub: string }
+  return jwt.verify(token, jwtConfig.refreshSecret) as { sub: string }
 }
 
 export async function blacklistToken(token: string, userId: string, reason: string): Promise<void> {

@@ -8,14 +8,15 @@ import {
   explanationEvalPrompt,
 } from './prompts/interview.prompt'
 import { gapAnalysisPrompt } from './prompts/gap-analysis.prompt'
+import { env } from '../../config/env'
 
 const openai = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
-  baseURL: 'https://api.groq.com/openai/v1',
+  apiKey: env.OPENAI_API_KEY,
+  baseURL: env.OPENAI_BASE_URL,
 })
 
-export const MODEL = 'llama-3.3-70b-versatile'
-const STT_MODEL = 'whisper-large-v3-turbo'
+export const MODEL = env.OPENAI_MODEL
+const STT_MODEL = env.OPENAI_STT_MODEL
 
 async function chat(prompt: string, temperature = 0.8): Promise<any> {
   const res = await openai.chat.completions.create({

@@ -1,9 +1,11 @@
 import OpenAI from 'openai'
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+import { env } from '../../config/env'
+
+const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: env.OPENAI_BASE_URL })
 
 export async function textToSpeech(text: string): Promise<Buffer> {
   const response = await openai.audio.speech.create({
-    model: process.env.OPENAI_TTS_MODEL || 'tts-1',
+    model: env.OPENAI_TTS_MODEL,
     voice: 'nova',
     input: text,
   })

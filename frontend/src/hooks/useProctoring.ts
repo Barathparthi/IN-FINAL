@@ -3,9 +3,10 @@ import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 import * as faceapi from '@vladmandic/face-api';
 import axios from 'axios';
+import { ENV } from '../config/env.config';
 
-const FACE_MODEL_URL = 'https://vladmandic.github.io/face-api/model';
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const FACE_MODEL_URL = ENV.FACE_MODEL_URL;
+const API_BASE = ENV.API_BASE_URL;
 
 export interface ViolationEvent {
   type: string;
@@ -29,6 +30,9 @@ export const useProctoring = (
   const detectionIntervalRef = useRef<any>(null);
   const lastStrikeTime  = useRef(0);
   const audioDetectedStartTime = useRef<number | null>(null);
+  const gazeAwayStartTime = useRef<number | null>(null);
+  const lastFocusWarnTime = useRef(0);
+  const speechRecognitionRef = useRef<any>(null);
   
   const [loading, setLoading]       = useState(true);
   const [strikes, setStrikes]       = useState(initialStrikes);
@@ -48,6 +52,86 @@ export const useProctoring = (
 
   const STRIKE_COOLDOWN = 8000; 
   const MINUTE_THRESHOLD = 60000; // 1 minute
+  const FOCUS_GAZE_THRESHOLD = ENV.PROCTORING_GAZE_AWAY_MS;
+  const FOCUS_WARN_COOLDOWN = ENV.PROCTORING_WARN_COOLDOWN_MS;
+
+  const isLikelyLookingAway = (faceDet: any) => {
+    const box = faceDet?.detection?.box;
+    const landmarks = faceDet?.landmarks;
+    if (!box || !landmarks) return false;
+
+    const leftEye = landmarks.getLeftEye?.() || [];
+    const rightEye = landmarks.getRightEye?.() || [];
+    const nose = landmarks.getNose?.() || [];
+    if (leftEye.length === 0 || rightEye.length === 0 || nose.length === 0) return false;
+
+    const avg = (pts: any[]) => pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+    const l = avg(leftEye);
+    const r = avg(rightEye);
+    const n = avg(nose);
+
+    const eyeCenterX = (l.x / leftEye.length + r.x / rightEye.length) / 2;
+    const noseCenterX = n.x / nose.length;
+    const faceCenterX = box.x + box.width / 2;
+
+    const eyeOffset = Math.abs(eyeCenterX - faceCenterX) / box.width;
+    const noseOffset = Math.abs(noseCenterX - faceCenterX) / box.width;
+
+    return eyeOffset > 0.16 || noseOffset > 0.18;
+  };
+
+  const triggerFocusWarning = () => {
+    const now = Date.now();
+    if (now - lastFocusWarnTime.current < FOCUS_WARN_COOLDOWN) return;
+    lastFocusWarnTime.current = now;
+
+    if ('speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance('Look at the screen');
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.error('TTS warning failed:', e);
+      }
+    }
+
+    try {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      if (speechRecognitionRef.current) {
+        speechRecognitionRef.current.stop();
+        speechRecognitionRef.current = null;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+      recognition.onresult = (event: any) => {
+        const transcript = event?.results?.[0]?.[0]?.transcript;
+        if (transcript) console.debug('Focus warning STT heard:', transcript);
+      };
+      recognition.onerror = () => {
+        speechRecognitionRef.current = null;
+      };
+      recognition.onend = () => {
+        speechRecognitionRef.current = null;
+      };
+
+      speechRecognitionRef.current = recognition;
+      recognition.start();
+      setTimeout(() => {
+        try { recognition.stop(); } catch {}
+      }, 3500);
+    } catch (e) {
+      console.error('STT listener failed:', e);
+    }
+  };
+
   const reportViolation = async (type: string, isStrike: boolean, customScreenshot?: string) => {
     const video = videoRef.current;
     const now = Date.now();
@@ -133,6 +217,14 @@ export const useProctoring = (
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (speechRecognitionRef.current) {
+        try { speechRecognitionRef.current.stop(); } catch {}
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (loading || status === 'TERMINATED') return;
 
     const detect = async () => {
@@ -162,6 +254,7 @@ export const useProctoring = (
 
         const actuallyNoFace = faceCount === 0;
         const multipleFaces = faceCount > 1 || personCount > 1;
+        const likelyLookingAway = faceCount === 1 ? isLikelyLookingAway(faceDets[0]) : false;
 
         if (actuallyNoFace) {
            if (!noFaceStartTime.current) noFaceStartTime.current = Date.now();
@@ -174,7 +267,8 @@ export const useProctoring = (
           noFaceDetected: actuallyNoFace,
           multiplePeople: multipleFaces,
           phoneDetected,
-          faceMismatch
+          faceMismatch,
+          focusLost: !!focusLossStartTime.current || likelyLookingAway
         }));
 
         const now = Date.now();
@@ -182,6 +276,20 @@ export const useProctoring = (
         const ruleIsEnabled = (type: string) => rules[type] !== false
         const ruleIsStrike  = (type: string) => rules[type] !== 'FLAG' && rules[type] !== false
         let currentViolationType: string | null = null;
+
+        if (likelyLookingAway && ruleIsEnabled('FOCUS_LOSS') && !gazeAwayStartTime.current) {
+          gazeAwayStartTime.current = now;
+        }
+        if (!likelyLookingAway) {
+          gazeAwayStartTime.current = null;
+        }
+
+        const gazeFocusLossExceeded = !!(
+          likelyLookingAway &&
+          ruleIsEnabled('FOCUS_LOSS') &&
+          gazeAwayStartTime.current &&
+          (now - gazeAwayStartTime.current > FOCUS_GAZE_THRESHOLD)
+        );
 
         if (phoneDetected && ruleIsEnabled('PHONE_DETECTED')) {
           currentViolationType = 'PHONE_DETECTED';
@@ -195,6 +303,11 @@ export const useProctoring = (
         else if (noFaceStartTime.current && (now - noFaceStartTime.current > MINUTE_THRESHOLD) && ruleIsEnabled('FACE_AWAY')) {
           currentViolationType = 'FACE_AWAY';
           noFaceStartTime.current = now;
+        }
+        else if (gazeFocusLossExceeded) {
+          currentViolationType = 'FOCUS_LOSS';
+          gazeAwayStartTime.current = now;
+          triggerFocusWarning();
         }
         else if (focusLossStartTime.current && (now - focusLossStartTime.current > MINUTE_THRESHOLD) && ruleIsEnabled('FOCUS_LOSS')) {
           currentViolationType = 'FOCUS_LOSS';
@@ -220,6 +333,21 @@ export const useProctoring = (
           canvasRef.current.width = video.videoWidth;
           canvasRef.current.height = video.videoHeight;
           ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+
+          const drawEyeBox = (points: any[], color: string) => {
+            if (!points || points.length === 0) return;
+            const xs = points.map(p => p.x);
+            const ys = points.map(p => p.y);
+            const minX = Math.min(...xs);
+            const maxX = Math.max(...xs);
+            const minY = Math.min(...ys);
+            const maxY = Math.max(...ys);
+            const pad = 4;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2);
+          };
+
           predictions.forEach(p => {
              if (p.class === 'cell phone' || (p.class === 'person' && personCount > 1)) {
                 const [x,y,w,h] = p.bbox;
@@ -233,6 +361,23 @@ export const useProctoring = (
              const box = f.detection.box;
              ctx.strokeStyle = i === 0 ? '#00ff94' : '#ef4444'; ctx.lineWidth = 2;
              ctx.strokeRect(box.x, box.y, box.width, box.height);
+
+             if (i === 0) {
+               const leftEye = f.landmarks?.getLeftEye?.() || [];
+               const rightEye = f.landmarks?.getRightEye?.() || [];
+               const eyeColor = likelyLookingAway ? '#ef4444' : '#00ff94';
+               drawEyeBox(leftEye, eyeColor);
+               drawEyeBox(rightEye, eyeColor);
+
+               const awaySecs = gazeAwayStartTime.current ? Math.max(0, Math.floor((now - gazeAwayStartTime.current) / 1000)) : 0;
+               const gazeLabel = likelyLookingAway
+                 ? `IRIS/GAZE: LOOKING AWAY (${awaySecs}s)`
+                 : 'IRIS/GAZE: ON SCREEN';
+
+               ctx.fillStyle = likelyLookingAway ? '#ef4444' : '#00ff94';
+               ctx.font = 'bold 12px Arial';
+               ctx.fillText(gazeLabel, box.x, Math.max(14, box.y - 18));
+             }
           });
         }
       } catch (e) {

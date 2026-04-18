@@ -27,7 +27,7 @@ export default function CampusHiringPage() {
   })
 
   // Filter to campus campaigns only
-  const campaigns = allCampaigns.filter((c: any) => !c.hiringType || c.hiringType === 'CAMPUS')
+  const campaigns = allCampaigns.filter((c: any) => c.hiringType === 'CAMPUS')
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => campaignApi.updateStatus(id, status),

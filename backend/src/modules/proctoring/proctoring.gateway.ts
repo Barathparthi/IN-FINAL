@@ -2,13 +2,14 @@ import { Server } from 'socket.io'
 import type { Server as HTTPServer } from 'http'
 import { verifyAccessToken } from '../../lib/jwt'
 import { isTokenBlacklisted } from '../../lib/jwt'
+import { env } from '../../config/env'
 
 export function initProctoringGateway(httpServer: HTTPServer) {
-  const clientUrlRaw = process.env.CLIENT_URL || process.env.FRONTEND_URL || ''
+  const clientUrlRaw = env.CLIENT_URL || env.FRONTEND_URL || ''
   const corsOrigins = clientUrlRaw.split(',').map((origin) => origin.trim()).filter(Boolean)
 
   const io = new Server(httpServer, {
-    cors: { origin: corsOrigins.length > 0 ? corsOrigins : true, credentials: true },
+    cors: { origin: env.CORS_ALLOW_ALL || corsOrigins.length === 0 ? true : corsOrigins, credentials: true },
     path: '/ws/proctoring',
   })
 

@@ -102,6 +102,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import * as ScorecardService from './scorecard.service'
 import * as ReportService    from './report.service'
+import { generateCampusReportPDF } from './campus-report.service'
 import { prisma }            from '../../lib/prisma'
 import { forwardScorecardToAdmin } from '../admin/advance-round.service'
 import { gapAnalysisQueue }  from '../../jobs/queue'
@@ -170,9 +171,35 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
         // enrollmentPhotoUrl is a direct field on CandidateProfile — no include needed
         // Fetch attempts with round info + interview answers for PDF
         attempts: {
-          where:   { status: 'COMPLETED' },
+          where:   { status: { in: ['COMPLETED', 'TERMINATED', 'TIMED_OUT'] } },
           include: {
             round: { select: { roundType: true, passMarkPercent: true, order: true } },
+            mcqAnswers: {
+              include: {
+                question: {
+                  select: {
+                    prompt: true,
+                    stem: true,
+                    topicTag: true,
+                  },
+                },
+              },
+              orderBy: { answeredAt: 'asc' },
+            },
+            codingSubmissions: {
+              include: {
+                question: {
+                  select: {
+                    prompt: true,
+                    problemTitle: true,
+                    problemStatement: true,
+                    topicTag: true,
+                    liveCodingProblem: true,
+                  },
+                },
+              },
+              orderBy: { submittedAt: 'asc' },
+            },
             interviewAnswers: {
               include: { question: { select: { prompt: true, topicTag: true, evaluationRubric: true, liveCodingProblem: true } } },
               orderBy: { answeredAt: 'asc' },
@@ -202,11 +229,43 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
       }
     })
 
-    // Build interview answer previews for PDF
-    const interviewPreviews: any[] = []
+    // Build answer previews for PDF from all round types (MCQ, coding, interview).
+    const interviewPreviewsRaw: any[] = []
     for (const attempt of (candidate as any).attempts || []) {
+      for (const ma of attempt.mcqAnswers || []) {
+        const qText = ma.question?.prompt || ma.question?.stem || 'Question'
+        const passed = !!ma.isCorrect
+        interviewPreviewsRaw.push({
+          prompt: qText,
+          category: ma.question?.topicTag || 'General',
+          answerText: ma.selectedOptionId ? `Selected option: ${ma.selectedOptionId}` : '',
+          answerPreview: ma.selectedOptionId ? `Selected: ${ma.selectedOptionId}` : '',
+          aiScore: passed ? 10 : 0,
+          aiReasoning: passed ? 'Correct answer selected' : 'Incorrect answer selected',
+          mode: 'TEXT',
+          __sortAt: ma.answeredAt || attempt.completedAt || attempt.startedAt,
+        })
+      }
+
+      for (const cs of attempt.codingSubmissions || []) {
+        const qText = cs.question?.liveCodingProblem || cs.question?.problemTitle || cs.question?.problemStatement || cs.question?.prompt || 'Coding Question'
+        const ratio = cs.testCasesTotal ? (cs.testCasesPassed || 0) / cs.testCasesTotal : null
+        const derivedScore = ratio == null ? null : Number((ratio * 10).toFixed(2))
+        interviewPreviewsRaw.push({
+          prompt: qText,
+          category: cs.question?.topicTag || 'Coding',
+          codeSubmission: cs.sourceCode,
+          testCasesPassed: cs.testCasesPassed,
+          testCasesTotal: cs.testCasesTotal,
+          aiScore: derivedScore,
+          aiReasoning: cs.statusDesc || null,
+          mode: 'LIVE_CODING',
+          __sortAt: cs.submittedAt || attempt.completedAt || attempt.startedAt,
+        })
+      }
+
       for (const ia of attempt.interviewAnswers || []) {
-        interviewPreviews.push({
+        interviewPreviewsRaw.push({
           prompt:           ia.question?.prompt || '',
           category:         (ia.question as any)?.topicTag || (ia.question as any)?.category || 'General',
           evaluationRubric: (ia.question as any)?.evaluationRubric,
@@ -233,19 +292,30 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
           isFollowUp:         !!ia.aiFollowUpAsked,
           followUpPrompt:     ia.aiFollowUpAsked,
           mode:               ia.mode,
+          __sortAt:           ia.answeredAt || attempt.completedAt || attempt.startedAt,
         })
       }
     }
+
+    const interviewPreviews = interviewPreviewsRaw
+      .sort((a, b) => {
+        const at = a.__sortAt ? new Date(a.__sortAt).getTime() : 0
+        const bt = b.__sortAt ? new Date(b.__sortAt).getTime() : 0
+        return at - bt
+      })
+      .map(({ __sortAt, ...rest }) => rest)
 
     // Fetch photo buffer before generating PDF
     const candidatePhoto = candidate.enrollmentPhotoUrl
       ? await fetchPhotoBuffer(candidate.enrollmentPhotoUrl)
       : null
 
-    const stream = ReportService.generateReportPDF({
+    const isCampus = (candidate.campaign.hiringType || '').toUpperCase() === 'CAMPUS'
+
+    const reportData = {
       candidate:     candidate.user,
       candidatePhoto,
-      campaign:           candidate.campaign,
+      campaign:      candidate.campaign,
       scorecard: {
         technicalFitPercent: sc.technicalFitPercent,
         trustScore:          sc.trustScore,
@@ -255,11 +325,16 @@ export async function downloadReport(req: Request, res: Response, next: NextFunc
         recruiterRating:     sc.recruiterRating,
         generatedAt:         sc.generatedAt,
       },
-      strikeLog:           candidate.strikeLog,
+      strikeLog:      candidate.strikeLog,
       interviewPreviews,
-    })
+    }
 
-    const filename = `indium_${candidate.user.firstName}_${candidate.user.lastName}_report.pdf`.replace(/\s+/g, '_').toLowerCase()
+    const stream = isCampus
+      ? generateCampusReportPDF(reportData)
+      : ReportService.generateReportPDF(reportData)
+
+    const suffix  = isCampus ? 'campus_report' : 'report'
+    const filename = `indium_${candidate.user.firstName}_${candidate.user.lastName}_${suffix}.pdf`.replace(/\s+/g, '_').toLowerCase()
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     stream.pipe(res)

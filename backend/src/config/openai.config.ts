@@ -1,5 +1,7 @@
 import OpenAI from 'openai'
-export const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-export const OPENAI_MODEL     = process.env.OPENAI_MODEL     || 'gpt-4o'
-export const OPENAI_TTS_MODEL = process.env.OPENAI_TTS_MODEL || 'tts-1'
-export const OPENAI_STT_MODEL = process.env.OPENAI_STT_MODEL || 'whisper-1'
+import { env } from './env'
+
+export const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY, baseURL: env.OPENAI_BASE_URL })
+export const OPENAI_MODEL     = env.OPENAI_MODEL
+export const OPENAI_TTS_MODEL = env.OPENAI_TTS_MODEL
+export const OPENAI_STT_MODEL = env.OPENAI_STT_MODEL

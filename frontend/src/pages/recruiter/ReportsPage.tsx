@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { recruiterApi } from '../../services/api.services'
 import {
   Download, FileText, FileSpreadsheet,
-  ChevronDown, BarChart2, Loader2
+  ChevronDown, BarChart2, Loader2, Zap
 } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import JSZip from 'jszip'
 import toast from 'react-hot-toast'
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, PieChart, Pie, Cell } from 'recharts'
 
@@ -28,6 +29,10 @@ export default function ReportsPage() {
   const [hiringTypeFilter, setHiringTypeFilter] = useState<'CAMPUS' | 'LATERAL' | null>(null)
   const [exporting, setExporting] = useState<'csv' | 'xlsx' | 'pdf' | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
+  const [bulkGenerating, setBulkGenerating] = useState(false)
+  const [bulkDownloading, setBulkDownloading] = useState(false)
+  const qc = useQueryClient()
 
   const { data: campaigns = [], isLoading: isLoadingCampaigns } = useQuery({
     queryKey: ['recruiter', 'campaigns'],
@@ -58,6 +63,10 @@ export default function ReportsPage() {
 
   const activeCampaign = (campaigns as any[]).find((c: any) => c.campaignId === selectedCampaignId)
   const candidateList = candidates as any[]
+
+  useEffect(() => {
+    setSelectedCandidateIds([])
+  }, [selectedCampaignId])
 
   // Chart data
   const statusCounts = candidateList.reduce((acc: Record<string, number>, c: any) => {
@@ -92,6 +101,88 @@ export default function ReportsPage() {
 
   const fileName = () =>
     `Report_${activeCampaign?.campaign?.name?.replace(/\s+/g, '_') || 'Campaign'}_${new Date().toISOString().split('T')[0]}`
+
+  const selectedCandidates = candidateList.filter(c => selectedCandidateIds.includes(c.id))
+  const allSelected = candidateList.length > 0 && selectedCandidateIds.length === candidateList.length
+
+  const toggleCandidate = (candidateId: string) => {
+    setSelectedCandidateIds(prev => prev.includes(candidateId)
+      ? prev.filter(id => id !== candidateId)
+      : [...prev, candidateId]
+    )
+  }
+
+  const toggleAllCandidates = () => {
+    setSelectedCandidateIds(prev => prev.length === candidateList.length ? [] : candidateList.map(c => c.id))
+  }
+
+  const bulkRegenerate = async () => {
+    if (selectedCandidates.length === 0) {
+      toast.error('Select at least one candidate')
+      return
+    }
+
+    setBulkGenerating(true)
+    try {
+      const results = await Promise.allSettled(
+        selectedCandidates.map(c => recruiterApi.generateScorecard(c.id))
+      )
+      const failed = results.filter(r => r.status === 'rejected').length
+      qc.invalidateQueries({ queryKey: ['recruiter', 'candidates', selectedCampaignId] })
+      toast.success(failed > 0
+        ? `Queued ${selectedCandidates.length - failed} scorecards, ${failed} failed`
+        : `Queued ${selectedCandidates.length} scorecards`
+      )
+    } catch {
+      toast.error('Failed to queue scorecards')
+    } finally {
+      setBulkGenerating(false)
+    }
+  }
+
+  const bulkDownloadZip = async () => {
+    if (selectedCandidates.length === 0) {
+      toast.error('Select at least one candidate')
+      return
+    }
+
+    setBulkDownloading(true)
+    try {
+      const zip = new JSZip()
+      let downloaded = 0
+
+      await Promise.all(selectedCandidates.map(async (c) => {
+        try {
+          const blob = await recruiterApi.downloadReport(c.id)
+          const safeName = `${c.user.firstName}_${c.user.lastName}`.replace(/\s+/g, '_')
+          zip.file(`indium_report_${safeName}.pdf`, blob)
+          downloaded += 1
+        } catch {
+          // skip individual failures and continue
+        }
+      }))
+
+      if (downloaded === 0) {
+        toast.error('No reports were available to download')
+        return
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const url = window.URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${fileName()}_reports.zip`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success(`Downloaded ${downloaded} report${downloaded !== 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Bulk download failed')
+    } finally {
+      setBulkDownloading(false)
+    }
+  }
 
   const exportCSV = () => {
     setExporting('csv')
@@ -361,12 +452,26 @@ export default function ReportsPage() {
           <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--cream)', margin: 0 }}>Individual Candidate Reports</h3>
-              <span className="badge badge-muted">{candidateList.length} candidates</span>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <span className="badge badge-muted">{candidateList.length} candidates</span>
+                <span className="badge badge-teal">{selectedCandidateIds.length} selected</span>
+                  <button className="btn btn-outline btn-sm" onClick={bulkRegenerate} disabled={bulkGenerating || selectedCandidateIds.length === 0}>
+                  {bulkGenerating ? <Loader2 size={14} className="spin-once" /> : <Zap size={14} />}
+                  Regenerate Selected
+                </button>
+                <button className="btn btn-primary btn-sm" onClick={bulkDownloadZip} disabled={bulkDownloading || selectedCandidateIds.length === 0}>
+                  {bulkDownloading ? <Loader2 size={14} className="spin-once" /> : <Download size={14} />}
+                  Download Selected ZIP
+                </button>
+              </div>
             </div>
             <div className="table-wrap" style={{ border: 'none', borderRadius: 0, maxHeight: '420px', overflowY: 'auto' }}>
               <table>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--bg-card)' }}>
                   <tr>
+                    <th style={{ width: 42 }}>
+                      <input type="checkbox" checked={allSelected} onChange={toggleAllCandidates} />
+                    </th>
                     <th>Candidate</th>
                     <th>Status</th>
                     <th>Fit Score</th>
@@ -385,6 +490,13 @@ export default function ReportsPage() {
                     
                     return (
                       <tr key={c.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={selectedCandidateIds.includes(c.id)}
+                            onChange={() => toggleCandidate(c.id)}
+                          />
+                        </td>
                         <td style={{ fontWeight: 600 }}>
                            <div style={{ color: 'var(--cream)' }}>{c.user.firstName} {c.user.lastName}</div>
                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 400 }}>{c.user.email}</div>
