@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 import * as faceapi from '@vladmandic/face-api';
+import { FilesetResolver, FaceLandmarker } from '@mediapipe/tasks-vision';
 import axios from 'axios';
 import { ENV } from '../config/env.config';
 
@@ -27,10 +28,12 @@ export const useProctoring = (
   initialStrikes: number = 0
 ) => {
   const modelRef = useRef<cocoSsd.ObjectDetection | null>(null);
+  const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
   const detectionIntervalRef = useRef<any>(null);
   const lastStrikeTime  = useRef(0);
   const audioDetectedStartTime = useRef<number | null>(null);
   const gazeAwayStartTime = useRef<number | null>(null);
+  const gazeStrikeFired = useRef(false);
   const lastFocusWarnTime = useRef(0);
   const speechRecognitionRef = useRef<any>(null);
   
@@ -55,30 +58,79 @@ export const useProctoring = (
   const FOCUS_GAZE_THRESHOLD = ENV.PROCTORING_GAZE_AWAY_MS;
   const FOCUS_WARN_COOLDOWN = ENV.PROCTORING_WARN_COOLDOWN_MS;
 
-  const isLikelyLookingAway = (faceDet: any) => {
-    const box = faceDet?.detection?.box;
-    const landmarks = faceDet?.landmarks;
-    if (!box || !landmarks) return false;
-
-    const leftEye = landmarks.getLeftEye?.() || [];
-    const rightEye = landmarks.getRightEye?.() || [];
-    const nose = landmarks.getNose?.() || [];
-    if (leftEye.length === 0 || rightEye.length === 0 || nose.length === 0) return false;
-
-    const avg = (pts: any[]) => pts.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
-    const l = avg(leftEye);
-    const r = avg(rightEye);
-    const n = avg(nose);
-
-    const eyeCenterX = (l.x / leftEye.length + r.x / rightEye.length) / 2;
-    const noseCenterX = n.x / nose.length;
-    const faceCenterX = box.x + box.width / 2;
-
-    const eyeOffset = Math.abs(eyeCenterX - faceCenterX) / box.width;
-    const noseOffset = Math.abs(noseCenterX - faceCenterX) / box.width;
-
-    return eyeOffset > 0.16 || noseOffset > 0.18;
+  // ===== IRIS DETECTION COMMENTED OUT - UNCOMMENT WHEN NEEDED =====
+  /*
+  const point = (landmarks: any[], index: number) => landmarks?.[index] || null;
+  const averagePoint = (landmarks: any[], indices: number[]) => {
+    const points = indices.map((index) => point(landmarks, index)).filter(Boolean)
+    if (points.length === 0) return null
+    return points.reduce((acc, current) => ({ x: acc.x + current.x, y: acc.y + current.y }), { x: 0, y: 0 })
   };
+
+  const distance = (a: any, b: any) => Math.hypot((a?.x ?? 0) - (b?.x ?? 0), (a?.y ?? 0) - (b?.y ?? 0))
+
+  const getIrisFocusState = (landmarks: any[]) => {
+    if (!landmarks || landmarks.length < 478) return null
+
+    const leftIris = averagePoint(landmarks, [468, 469, 470, 471, 472])
+    const rightIris = averagePoint(landmarks, [473, 474, 475, 476, 477])
+    const leftOuter = point(landmarks, 33)
+    const leftInner = point(landmarks, 133)
+    const rightOuter = point(landmarks, 362)
+    const rightInner = point(landmarks, 263)
+    const leftTop = point(landmarks, 159)
+    const leftBottom = point(landmarks, 145)
+    const rightTop = point(landmarks, 386)
+    const rightBottom = point(landmarks, 374)
+
+    if (!leftIris || !rightIris || !leftOuter || !leftInner || !rightOuter || !rightInner) return null
+
+    const leftEyeCenter = {
+      x: (leftOuter.x + leftInner.x) / 2,
+      y: (leftOuter.y + leftInner.y) / 2,
+    }
+    const rightEyeCenter = {
+      x: (rightOuter.x + rightInner.x) / 2,
+      y: (rightOuter.y + rightInner.y) / 2,
+    }
+
+    const leftEyeWidth = Math.max(0.0001, distance(leftOuter, leftInner))
+    const rightEyeWidth = Math.max(0.0001, distance(rightOuter, rightInner))
+    const leftEyeHeight = Math.max(0.0001, distance(leftTop, leftBottom))
+    const rightEyeHeight = Math.max(0.0001, distance(rightTop, rightBottom))
+
+    const leftOffsetX = (leftIris.x - leftEyeCenter.x) / leftEyeWidth
+    const rightOffsetX = (rightIris.x - rightEyeCenter.x) / rightEyeWidth
+    const leftOffsetY = (leftIris.y - leftEyeCenter.y) / leftEyeHeight
+    const rightOffsetY = (rightIris.y - rightEyeCenter.y) / rightEyeHeight
+
+    const offsetX = (leftOffsetX + rightOffsetX) / 2
+    const offsetY = (leftOffsetY + rightOffsetY) / 2
+
+    // Thresholds: only trigger on significant look-away (not natural screen viewing)
+    // Horizontal: ±0.35 (~70% of eye width) - allows natural head tilt
+    // Vertical: ±0.30 (~60% of eye height) - accounts for natural iris position
+    const HORIZONTAL_THRESHOLD = 0.35
+    const VERTICAL_THRESHOLD = 0.30
+    
+    const lookingAway = Math.abs(offsetX) > HORIZONTAL_THRESHOLD || Math.abs(offsetY) > VERTICAL_THRESHOLD
+    const direction = Math.abs(offsetX) > Math.abs(offsetY)
+      ? (offsetX > 0 ? 'RIGHT' : 'LEFT')
+      : (offsetY > 0 ? 'DOWN' : 'UP')
+
+    return {
+      lookingAway,
+      direction,
+      offsetX,
+      offsetY,
+      leftIris,
+      rightIris,
+      leftEyeCenter,
+      rightEyeCenter,
+    }
+  };
+  */
+  // ===== END IRIS DETECTION SECTION =====
 
   const triggerFocusWarning = () => {
     const now = Date.now();
@@ -198,6 +250,7 @@ export const useProctoring = (
     let mounted = true;
     const init = async () => {
       try {
+        const vision = await FilesetResolver.forVisionTasks(ENV.MEDIAPIPE_VISION_WASM_URL)
         const [coco] = await Promise.all([
            cocoSsd.load({ base: 'lite_mobilenet_v2' }),
            faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
@@ -206,6 +259,16 @@ export const useProctoring = (
         ]);
         if (mounted) {
           modelRef.current = coco;
+          faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: ENV.MEDIAPIPE_FACE_LANDMARKER_MODEL_URL,
+              delegate: 'GPU',
+            },
+            runningMode: 'VIDEO',
+            numFaces: 1,
+            outputFaceBlendshapes: false,
+            outputFacialTransformationMatrixes: false,
+          })
           setLoading(false);
         }
       } catch (e) {
@@ -238,6 +301,12 @@ export const useProctoring = (
              .withFaceLandmarks().withFaceDescriptors()
         ]);
 
+        // IRIS DETECTION DISABLED - uncomment above to enable
+        // const mediapipeResult = faceLandmarkerRef.current
+        //   ? faceLandmarkerRef.current.detectForVideo(video, performance.now())
+        //   : null
+        // const mediapipeFace = mediapipeResult?.faceLandmarks?.[0] || null
+
         let phoneDetected = false;
         let personCount = 0;
         predictions.forEach(p => {
@@ -254,7 +323,10 @@ export const useProctoring = (
 
         const actuallyNoFace = faceCount === 0;
         const multipleFaces = faceCount > 1 || personCount > 1;
-        const likelyLookingAway = faceCount === 1 ? isLikelyLookingAway(faceDets[0]) : false;
+          // IRIS DETECTION DISABLED - uncomment code above to enable
+          // const irisFocus = mediapipeFace ? getIrisFocusState(mediapipeFace) : null;
+          const likelyLookingAway = false; // !!irisFocus?.lookingAway;
+          // const gazeDirection = 'CENTER'; // irisFocus?.direction || 'CENTER';
 
         if (actuallyNoFace) {
            if (!noFaceStartTime.current) noFaceStartTime.current = Date.now();
@@ -277,17 +349,18 @@ export const useProctoring = (
         const ruleIsStrike  = (type: string) => rules[type] !== 'FLAG' && rules[type] !== false
         let currentViolationType: string | null = null;
 
-        if (likelyLookingAway && ruleIsEnabled('FOCUS_LOSS') && !gazeAwayStartTime.current) {
-          gazeAwayStartTime.current = now;
-        }
         if (!likelyLookingAway) {
           gazeAwayStartTime.current = null;
+          gazeStrikeFired.current = false;
+        } else if (ruleIsEnabled('FOCUS_LOSS') && !gazeAwayStartTime.current) {
+          gazeAwayStartTime.current = now;
         }
 
         const gazeFocusLossExceeded = !!(
           likelyLookingAway &&
           ruleIsEnabled('FOCUS_LOSS') &&
           gazeAwayStartTime.current &&
+          !gazeStrikeFired.current &&
           (now - gazeAwayStartTime.current > FOCUS_GAZE_THRESHOLD)
         );
 
@@ -306,7 +379,7 @@ export const useProctoring = (
         }
         else if (gazeFocusLossExceeded) {
           currentViolationType = 'FOCUS_LOSS';
-          gazeAwayStartTime.current = now;
+          gazeStrikeFired.current = true;
           triggerFocusWarning();
         }
         else if (focusLossStartTime.current && (now - focusLossStartTime.current > MINUTE_THRESHOLD) && ruleIsEnabled('FOCUS_LOSS')) {
@@ -334,20 +407,6 @@ export const useProctoring = (
           canvasRef.current.height = video.videoHeight;
           ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
 
-          const drawEyeBox = (points: any[], color: string) => {
-            if (!points || points.length === 0) return;
-            const xs = points.map(p => p.x);
-            const ys = points.map(p => p.y);
-            const minX = Math.min(...xs);
-            const maxX = Math.max(...xs);
-            const minY = Math.min(...ys);
-            const maxY = Math.max(...ys);
-            const pad = 4;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 1.5;
-            ctx.strokeRect(minX - pad, minY - pad, (maxX - minX) + pad * 2, (maxY - minY) + pad * 2);
-          };
-
           predictions.forEach(p => {
              if (p.class === 'cell phone' || (p.class === 'person' && personCount > 1)) {
                 const [x,y,w,h] = p.bbox;
@@ -363,20 +422,71 @@ export const useProctoring = (
              ctx.strokeRect(box.x, box.y, box.width, box.height);
 
              if (i === 0) {
-               const leftEye = f.landmarks?.getLeftEye?.() || [];
-               const rightEye = f.landmarks?.getRightEye?.() || [];
-               const eyeColor = likelyLookingAway ? '#ef4444' : '#00ff94';
-               drawEyeBox(leftEye, eyeColor);
-               drawEyeBox(rightEye, eyeColor);
+               // IRIS RENDERING DISABLED - uncomment below to enable iris dots and bounding boxes
+               /*
+               const iris = irisFocus;
+               const eyeColor = iris?.lookingAway ? '#ef4444' : '#00ff94';
+               const irisRadius = 8; // Iris dot radius in pixels
+
+               if (iris?.leftEyeCenter && iris?.rightEyeCenter) {
+                 // Scale normalized coordinates to pixel coordinates
+                 const leftEyeX = iris.leftEyeCenter.x * canvasRef.current!.width;
+                 const leftEyeY = iris.leftEyeCenter.y * canvasRef.current!.height;
+                 const rightEyeX = iris.rightEyeCenter.x * canvasRef.current!.width;
+                 const rightEyeY = iris.rightEyeCenter.y * canvasRef.current!.height;
+
+                 // Draw eye region bounding boxes
+                 const eyeBoxSize = 50;
+                 ctx.strokeStyle = eyeColor;
+                 ctx.lineWidth = 2;
+                 ctx.strokeRect(
+                   leftEyeX - eyeBoxSize / 2,
+                   leftEyeY - eyeBoxSize / 2,
+                   eyeBoxSize,
+                   eyeBoxSize
+                 );
+                 ctx.strokeRect(
+                   rightEyeX - eyeBoxSize / 2,
+                   rightEyeY - eyeBoxSize / 2,
+                   eyeBoxSize,
+                   eyeBoxSize
+                 );
+
+                 // Draw iris dots
+                 ctx.fillStyle = eyeColor;
+                 // Left iris
+                 if (iris.leftIris) {
+                   const irisX = iris.leftIris.x * canvasRef.current!.width;
+                   const irisY = iris.leftIris.y * canvasRef.current!.height;
+                   ctx.beginPath();
+                   ctx.arc(irisX, irisY, irisRadius, 0, Math.PI * 2);
+                   ctx.fill();
+                   ctx.strokeStyle = '#fff';
+                   ctx.lineWidth = 1;
+                   ctx.stroke();
+                 }
+                 // Right iris
+                 if (iris.rightIris) {
+                   const irisX = iris.rightIris.x * canvasRef.current!.width;
+                   const irisY = iris.rightIris.y * canvasRef.current!.height;
+                   ctx.beginPath();
+                   ctx.arc(irisX, irisY, irisRadius, 0, Math.PI * 2);
+                   ctx.fill();
+                   ctx.strokeStyle = '#fff';
+                   ctx.lineWidth = 1;
+                   ctx.stroke();
+                 }
+               }
 
                const awaySecs = gazeAwayStartTime.current ? Math.max(0, Math.floor((now - gazeAwayStartTime.current) / 1000)) : 0;
-               const gazeLabel = likelyLookingAway
-                 ? `IRIS/GAZE: LOOKING AWAY (${awaySecs}s)`
+               const gazeLabel = iris?.lookingAway
+                 ? `IRIS/GAZE: LOOKING ${gazeDirection} (${awaySecs}s)`
                  : 'IRIS/GAZE: ON SCREEN';
 
-               ctx.fillStyle = likelyLookingAway ? '#ef4444' : '#00ff94';
+               ctx.fillStyle = iris?.lookingAway ? '#ef4444' : '#00ff94';
                ctx.font = 'bold 12px Arial';
                ctx.fillText(gazeLabel, box.x, Math.max(14, box.y - 18));
+               */
              }
           });
         }

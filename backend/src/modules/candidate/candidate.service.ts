@@ -12,6 +12,7 @@ export async function getMyProfile(candidateId: string) {
         select: {
           name: true,
           role: true,
+          expiresAt: true,
           pipelineConfig: true,
           rounds: {
             orderBy: { order: 'asc' },
@@ -25,20 +26,27 @@ export async function getMyProfile(candidateId: string) {
     },
   })
 
+  const attemptsByRound = new Map(candidate.attempts.map((a) => [a.roundId, a]))
+  const manualAdvanceOverride = candidate.adminDecision === 'ADVANCED'
+
+  // Strict unlock model: first round is open, subsequent rounds require previous round pass.
+  const strictUnlocked: boolean[] = candidate.campaign.rounds.map((round, i) => {
+    if (i === 0) return true
+    const prevRound = candidate.campaign.rounds[i - 1]
+    const prevAttempt = attemptsByRound.get(prevRound.id)
+    return !!(prevAttempt?.status === 'COMPLETED' && prevAttempt?.passed === true)
+  })
+
+  // Manual advance unlocks only the first blocked round (single-step override).
+  if (manualAdvanceOverride) {
+    const firstBlockedIndex = strictUnlocked.findIndex((u) => !u)
+    if (firstBlockedIndex >= 0) strictUnlocked[firstBlockedIndex] = true
+  }
+
   // Build enriched round list with live lock/unlock status
   const rounds = candidate.campaign.rounds.map((round, i) => {
     const attempt = candidate.attempts.find(a => a.roundId === round.id)
     const cfg = round.roundConfig as any
-
-    // Round is unlocked if:
-    // - It's Round 1 (always accessible), OR
-    // - Previous round has a COMPLETED + passed attempt
-    let unlocked = i === 0
-    if (i > 0) {
-      const prevRound = candidate.campaign.rounds[i - 1]
-      const prevAttempt = candidate.attempts.find(a => a.roundId === prevRound.id)
-      unlocked = !!(prevAttempt?.status === 'COMPLETED' && prevAttempt?.passed === true)
-    }
 
     return {
       id: round.id,
@@ -48,7 +56,7 @@ export async function getMyProfile(candidateId: string) {
       passMarkPercent: round.passMarkPercent,
       interviewMode: cfg?.interviewMode,
       questionCount: cfg ? (cfg.totalQuestions || cfg.problemCount || cfg.questionCount) : 0,
-      unlocked,
+      unlocked: strictUnlocked[i],
       attempt: attempt ? {
         status: attempt.status,
         percentScore: attempt.percentScore,
@@ -68,11 +76,14 @@ export async function getMyProfile(candidateId: string) {
     status: candidate.status,
     strikeCount,
     kycVerifiedAt: candidate.kycVerifiedAt,
+    resumeUploaded: !!candidate.resumeUrl,
+    campaignExpired: !!candidate.campaign.expiresAt && new Date(candidate.campaign.expiresAt).getTime() < Date.now(),
     faceDescriptor: (candidate as any).faceDescriptor,
     user: candidate.user,
     campaign: {
       name: candidate.campaign.name,
       role: candidate.campaign.role,
+      expiresAt: candidate.campaign.expiresAt,
       pipelineConfig: candidate.campaign.pipelineConfig,
     },
     rounds, // enriched with lock/unlock status

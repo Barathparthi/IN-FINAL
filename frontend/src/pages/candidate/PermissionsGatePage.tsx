@@ -122,7 +122,7 @@ export default function PermissionsGatePage() {
 
   useEffect(() => {
     if (profile?.status === 'READY' || profile?.status === 'IN_PROGRESS') {
-       navigate('/candidate/lobby')
+       navigate('/candidate/dashboard')
     } else if (profile?.status === 'TERMINATED' || profile?.status === 'REJECTED') {
        navigate('/candidate/terminated')
     } else if (profile?.status === 'COMPLETED') {

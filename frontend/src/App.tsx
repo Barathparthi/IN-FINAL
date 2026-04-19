@@ -43,20 +43,8 @@ import IdentityVerificationPage from './pages/candidate/IdentityVerificationPage
 function ProtectedRoute({ children, allowedRole, allowPendingPassword }: { children: React.ReactNode; allowedRole?: string; allowPendingPassword?: boolean }) {
   const { user, accessToken } = useAuthStore()
   if (!accessToken || !user) return <Navigate to="/login" replace />
-  
-  // Custom: if Candidate is new, direct them to permissions first, THEN password check
-  if (user.role === 'CANDIDATE') {
-    const hasPerms = sessionStorage.getItem('permissions_granted')
-    if (user.mustChangePassword) {
-       // if they must change password, but haven't granted perms, go to perms
-       if (!allowPendingPassword && !hasPerms) return <Navigate to="/candidate/permissions" replace />
-       // if they have granted perms, they should be changing password
-       if (!allowPendingPassword) return <Navigate to="/force-change-password" replace />
-    }
-  } else {
-    // Non-candidates must change password immediately
-    if (user.mustChangePassword && !allowPendingPassword) return <Navigate to="/force-change-password" replace />
-  }
+
+  if (user.mustChangePassword && !allowPendingPassword) return <Navigate to="/force-change-password" replace />
 
   if (allowedRole && user.role !== allowedRole) return <Navigate to="/login" replace />
   return <>{children}</>
@@ -134,10 +122,12 @@ export default function App() {
       </Route>
 
       {/* Candidate routes */}
+      <Route path="/candidate" element={<ProtectedRoute allowedRole="CANDIDATE"><Navigate to="/candidate/dashboard" replace /></ProtectedRoute>} />
+      <Route path="/candidate/dashboard" element={<ProtectedRoute allowedRole="CANDIDATE"><LobbyPage /></ProtectedRoute>} />
       <Route path="/candidate/permissions" element={<ProtectedRoute allowedRole="CANDIDATE" allowPendingPassword><PermissionsGatePage /></ProtectedRoute>} />
       <Route path="/candidate/identity-verification" element={<ProtectedRoute allowedRole="CANDIDATE"><IdentityVerificationPage /></ProtectedRoute>} />
       <Route path="/candidate/resume-upload" element={<ProtectedRoute allowedRole="CANDIDATE"><ResumeUploadPage /></ProtectedRoute>} />
-      <Route path="/candidate/lobby" element={<ProtectedRoute allowedRole="CANDIDATE"><LobbyPage /></ProtectedRoute>} />
+      <Route path="/candidate/lobby" element={<ProtectedRoute allowedRole="CANDIDATE"><Navigate to="/candidate/dashboard" replace /></ProtectedRoute>} />
       
       <Route path="/candidate/assessment" element={<ProtectedRoute allowedRole="CANDIDATE"><AssessmentLayout /></ProtectedRoute>}>
         <Route path=":roundId" element={<RoundDispatcher />} />

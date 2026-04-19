@@ -39,6 +39,22 @@ function toProfileArray<T>(value: T | T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : [value]
 }
 
+function isCampaignExpired(expiresAt?: Date | null): boolean {
+  if (!expiresAt) return false
+  return new Date(expiresAt).getTime() < Date.now()
+}
+
+function pickPreferredCandidateProfile(profiles: Array<{
+  status: string
+  updatedAt?: Date
+  createdAt?: Date
+  campaign?: { expiresAt?: Date | null }
+}>): any {
+  const nonExpired = profiles.filter((p) => !isCampaignExpired(p.campaign?.expiresAt))
+  const pool = nonExpired.length > 0 ? nonExpired : profiles
+  return pickActiveCandidateProfile(pool as any)
+}
+
 // ─── Login ────────────────────────────────────────────────────
 
 export async function login(input: LoginInput) {
@@ -46,7 +62,14 @@ export async function login(input: LoginInput) {
     where: { email: input.email.toLowerCase() },
     include: {
       candidateProfile: {
-        select: { id: true, status: true, campaignId: true, createdAt: true, updatedAt: true },
+        select: {
+          id: true,
+          status: true,
+          campaignId: true,
+          createdAt: true,
+          updatedAt: true,
+          campaign: { select: { expiresAt: true } },
+        },
       },
     },
   })
@@ -57,11 +80,19 @@ export async function login(input: LoginInput) {
   }
 
   const selectedCandidate = user.role === 'CANDIDATE'
-    ? pickActiveCandidateProfile(toProfileArray(user.candidateProfile as any))
+    ? pickPreferredCandidateProfile(toProfileArray(user.candidateProfile as any))
     : null
 
   if (user.role === 'CANDIDATE' && !selectedCandidate) {
     throw { status: 403, message: 'No campaign assignment found for this account.', code: 'NO_CAMPAIGN_ASSIGNMENT' }
+  }
+
+  if (user.role === 'CANDIDATE' && selectedCandidate && isCampaignExpired((selectedCandidate as any).campaign?.expiresAt)) {
+    throw {
+      status: 403,
+      message: 'Assessment access window has expired for your campaign.',
+      code: 'CAMPAIGN_EXPIRED',
+    }
   }
 
   // Candidate locked — recruiter has not granted permission yet
@@ -168,12 +199,31 @@ export async function refreshAccessToken(refreshToken: string) {
 
   const user = await prisma.user.findUniqueOrThrow({
     where: { id: payload.sub },
-    include: { candidateProfile: { select: { id: true, status: true, campaignId: true, createdAt: true, updatedAt: true } } },
+    include: {
+      candidateProfile: {
+        select: {
+          id: true,
+          status: true,
+          campaignId: true,
+          createdAt: true,
+          updatedAt: true,
+          campaign: { select: { expiresAt: true } },
+        },
+      },
+    },
   })
 
   const selectedCandidate = user.role === 'CANDIDATE'
-    ? pickActiveCandidateProfile(toProfileArray(user.candidateProfile as any))
+    ? pickPreferredCandidateProfile(toProfileArray(user.candidateProfile as any))
     : null
+
+  if (user.role === 'CANDIDATE' && selectedCandidate && isCampaignExpired((selectedCandidate as any).campaign?.expiresAt)) {
+    throw {
+      status: 403,
+      message: 'Assessment access window has expired for your campaign.',
+      code: 'CAMPAIGN_EXPIRED',
+    }
+  }
 
   const newAccessToken = signAccessToken({
     sub: user.id,
@@ -274,7 +324,7 @@ export async function getMe(userId: string) {
           resumeUrl: true,
           createdAt: true,
           updatedAt: true,
-          campaign: { select: { name: true, role: true } },
+          campaign: { select: { name: true, role: true, expiresAt: true } },
         },
       },
       recruiterProfile: {
@@ -295,7 +345,7 @@ export async function getMe(userId: string) {
   if (user.role !== 'CANDIDATE') return user
 
   const profiles = toProfileArray(user.candidateProfile as any)
-  const active = pickActiveCandidateProfile(profiles)
+  const active = pickPreferredCandidateProfile(profiles as any)
 
   return {
     ...user,

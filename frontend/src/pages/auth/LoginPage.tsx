@@ -38,7 +38,7 @@ export default function LoginPage() {
       } else if (data.user.role === 'RECRUITER') {
         navigate('/recruiter/dashboard')
       } else if (data.user.role === 'CANDIDATE') {
-        navigate('/candidate/permissions')
+        navigate('/candidate/dashboard')
       } else {
         navigate('/')
       }

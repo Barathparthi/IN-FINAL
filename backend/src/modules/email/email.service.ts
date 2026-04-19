@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 
 async function send(to: string, subject: string, html: string): Promise<string> {
   const info = await transporter.sendMail({
-    from:    `"Indium AI" <${process.env.SMTP_USER}>`,
+    from:    `"Indium AI"`,
     to,
     subject,
     html,

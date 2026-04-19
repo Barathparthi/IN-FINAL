@@ -55,7 +55,7 @@ export default function ResumeUploadPage() {
     try {
       await candidateApi.uploadResume(file)
       toast.success('Resume uploaded successfully!')
-      navigate('/candidate/lobby')
+      navigate('/candidate/dashboard')
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to upload resume')
     } finally {

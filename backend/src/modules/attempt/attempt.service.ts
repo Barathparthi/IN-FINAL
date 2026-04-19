@@ -22,8 +22,42 @@ export async function startAttempt(candidateId: string, input: StartAttemptInput
     include: { campaign: { include: { rounds: true } } },
   })
 
+  if (candidate.campaign.expiresAt && new Date(candidate.campaign.expiresAt).getTime() < Date.now()) {
+    throw {
+      status: 403,
+      message: 'Assessment access window has expired for this campaign.',
+      code: 'CAMPAIGN_EXPIRED',
+    }
+  }
+
   if (!['READY', 'IN_PROGRESS'].includes(candidate.status)) {
     throw { status: 400, message: 'Candidate is not ready to start assessment' }
+  }
+
+  const orderedRounds = [...candidate.campaign.rounds].sort((a, b) => a.order - b.order)
+  const targetRoundIndex = orderedRounds.findIndex((r) => r.id === input.roundId)
+  if (targetRoundIndex === -1) {
+    throw { status: 400, message: 'Round does not belong to candidate campaign.' }
+  }
+
+  if (targetRoundIndex > 0) {
+    const prevRound = orderedRounds[targetRoundIndex - 1]
+    const prevAttempt = await prisma.candidateAttempt.findFirst({
+      where: { candidateId, roundId: prevRound.id, status: 'COMPLETED' },
+      orderBy: { completedAt: 'desc' },
+      select: { passed: true },
+    })
+
+    const strictEligible = prevAttempt?.passed === true
+    const manualOverride = candidate.adminDecision === 'ADVANCED' && !!prevAttempt
+
+    if (!strictEligible && !manualOverride) {
+      throw {
+        status: 403,
+        message: 'This round is locked until previous round is passed or manually advanced.',
+        code: 'ROUND_LOCKED',
+      }
+    }
   }
 
   const existing = await prisma.candidateAttempt.findFirst({
@@ -136,6 +170,14 @@ export async function startAttempt(candidateId: string, input: StartAttemptInput
       assignedQuestionIds: drawnQuestions.map((q: any) => q.id),
     },
   })
+
+  // Consume one-time admin manual-advance override when the candidate enters the unlocked round.
+  if (candidate.adminDecision === 'ADVANCED') {
+    await prisma.candidateProfile.update({
+      where: { id: candidateId },
+      data: { adminDecision: null },
+    })
+  }
 
   await prisma.attemptRecording.create({
     data: { attemptId: attempt.id, recordingStartedAt: new Date() },

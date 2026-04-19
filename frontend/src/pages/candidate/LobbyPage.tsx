@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useThemeStore } from '../../store/themeStore'
-import { loadAllModels, enrollFace } from '../../utils/detectionService'
+import { enrollFace } from '../../utils/detectionService'
 import toast from 'react-hot-toast'
 
 export default function LobbyPage() {
@@ -51,21 +51,7 @@ export default function LobbyPage() {
       ))
 
   const isRejected = profile?.status === 'REJECTED' || profile?.status === 'TERMINATED'
-
-  // ── Camera helpers ────────────────────────────────────────────
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480, facingMode: 'user' },
-      })
-      streamRef.current = stream
-      if (videoRef.current) videoRef.current.srcObject = stream
-      loadAllModels() // warm-up models in background
-    } catch {
-      toast.error('Camera access denied. Identity verification requires camera access.')
-      setIsScanning(false)
-    }
-  }
+  const campaignExpired = !!profile?.campaignExpired
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
@@ -118,12 +104,18 @@ export default function LobbyPage() {
   // ── Start flow ───────────────────────────────────────────────
   const handleStartProcess = async () => {
     if (!activeRound) return
-    if (!profile?.faceDescriptor) {
-      setIsScanning(true)
-      startCamera()
-    } else {
-      navigate(`/candidate/assessment/${activeRound.id}`)
+    if (campaignExpired) {
+      toast.error('Assessment access window has expired for this campaign.')
+      return
     }
+
+    const prerequisitesReady = !!profile?.kycVerifiedAt && !!profile?.faceDescriptor && !!profile?.resumeUploaded
+    if (!prerequisitesReady) {
+      navigate('/candidate/permissions')
+      return
+    }
+
+    navigate(`/candidate/assessment/${activeRound.id}`)
   }
 
   // ── Capture biometric ────────────────────────────────────────
@@ -156,11 +148,9 @@ export default function LobbyPage() {
   function getRoundStatus(round: any, index: number) {
     const attempt = round.attempt
     if (!attempt) {
+      if (round.unlocked) return 'unlocked'
       if (index === 0) return 'unlocked'
-      const prev = rounds[index - 1]
-      const prevPassed =
-        prev?.attempt?.status === 'COMPLETED' && prev?.attempt?.passed === true
-      return prevPassed ? 'unlocked' : 'locked'
+      return 'locked'
     }
     if (attempt.status === 'COMPLETED' && attempt.passed === null)  return 'pending_review'
     if (attempt.status === 'COMPLETED' && attempt.passed === true)  return 'passed'
@@ -250,6 +240,22 @@ export default function LobbyPage() {
                 color:'var(--red)', fontSize:'0.75rem', fontWeight:700
               }}>
                 <ShieldAlert size={12} /> {profile.strikeCount} Strikes
+              </div>
+            )}
+
+            {profile.campaign?.expiresAt && (
+              <div style={{
+                display:'flex', alignItems:'center', gap:6,
+                padding:'2px 8px', borderRadius:20,
+                background: campaignExpired ? 'rgba(239,68,68,0.1)' : 'rgba(35,151,156,0.1)',
+                border: `1px solid ${campaignExpired ? 'var(--red)' : 'var(--teal)'}`,
+                color: campaignExpired ? 'var(--red)' : 'var(--teal)',
+                fontSize:'0.75rem', fontWeight:700,
+              }}>
+                <Clock size={12} />
+                {campaignExpired
+                  ? 'Window Closed'
+                  : `Ends: ${new Date(profile.campaign.expiresAt).toLocaleString('en-IN')}`}
               </div>
             )}
           </div>
@@ -526,7 +532,7 @@ export default function LobbyPage() {
             {!isRejected && !isCompleted && activeStatus !== 'pending_review' && (
               <button
                 className="btn btn-primary"
-                disabled={!rulesAccepted || !activeRound || !systemChecked}
+                disabled={!rulesAccepted || !activeRound || !systemChecked || campaignExpired}
                 style={{ 
                   width:'100%', padding:'16px', fontSize:'1.05rem', fontWeight:800,
                   boxShadow: '0 8px 24px rgba(251,133,30,0.2)',
@@ -534,7 +540,7 @@ export default function LobbyPage() {
                 }}
                 onClick={handleStartProcess}
               >
-                Secure Entrance
+                {campaignExpired ? 'Assessment Window Expired' : 'Secure Entrance'}
                 <ChevronRight size={18} style={{ marginLeft:6 }} />
               </button>
             )}
