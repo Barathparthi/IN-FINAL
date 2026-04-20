@@ -1,0 +1,118 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: indium-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-indium_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-indium_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - indium-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: indium-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - indium-net
+
+  judge0-db:
+    image: postgres:16-alpine
+    container_name: indium-judge0-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${JUDGE0_DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${JUDGE0_DB_NAME:-judge0}
+    volumes:
+      - judge0_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${JUDGE0_DB_USER:-postgres} -d ${JUDGE0_DB_NAME:-judge0}"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+    networks:
+      - indium-net
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: indium-judge0-redis
+    restart: unless-stopped
+    networks:
+      - indium-net
+
+  judge0-server:
+    image: judge0/judge0:latest
+    container_name: indium-judge0-server
+    restart: unless-stopped
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_started
+    environment:
+      RAILS_ENV: production
+      DATABASE_URL: postgres://${JUDGE0_DB_USER:-postgres}:${JUDGE0_DB_PASSWORD:-postgres}@judge0-db:5432/${JUDGE0_DB_NAME:-judge0}
+      REDIS_URL: redis://judge0-redis:6379
+    ports:
+      - "${JUDGE0_HOST_PORT:-2358}:2358"
+    networks:
+      - indium-net
+
+  backend:
+    image: ${BACKEND_IMAGE:-indium-backend:1.0.0}
+    container_name: indium-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      judge0-server:
+        condition: service_started
+    env_file:
+      - ./backend.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-indium_db}}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JUDGE0_API_URL: ${JUDGE0_API_URL:-http://judge0-server:2358}
+    ports:
+      - "${BACKEND_HOST_PORT:-4000}:4000"
+    networks:
+      - indium-net
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-indium-frontend:1.0.0}
+    container_name: indium-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_HOST_PORT:-8080}:80"
+    networks:
+      - indium-net
+
+volumes:
+  postgres_data:
+  redis_data:
+  judge0_db_data:
+
+networks:
+  indium-net:
+    driver: bridge
