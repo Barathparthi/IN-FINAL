@@ -7,7 +7,7 @@ int300/android/
 
 # Ignore desktop folder
 /desktop/
-
+/deploy_bundle/backend.env.template
 
 /infra/
 

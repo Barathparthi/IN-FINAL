@@ -11,6 +11,7 @@ import Step3RoundConfig from '../../components/campaign-wizard/Step3RoundConfig'
 import Step4InterviewConfig from '../../components/campaign-wizard/Step4InterviewConfig'
 import Step5Proctoring from '../../components/campaign-wizard/Step5Proctoring'
 import Step6Review from '../../components/campaign-wizard/Step6Review'
+import { createId } from '../../utils/id.util'
 
 import type {CampaignFormData } from './CreateCampaignPage'
 
@@ -82,7 +83,7 @@ export default function EditCampaignPage() {
           return { 
             ...r,
             ...cfg,
-            id: r.id || crypto.randomUUID(),
+            id: r.id || createId(),
             totalQuestions: cfg.totalQuestions || cfg.problemCount || cfg.questionCount || 0,
             topicTags: cfg.topicTags || cfg.aptitudeTopics || cfg.dsaTopics || [],
             resumeSplitPercent: cfg.resumeSplit || cfg.resumeSplitPercent || 0,

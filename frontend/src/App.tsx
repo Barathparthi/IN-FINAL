@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
+import type { AuthUser } from './store/authStore'
 import { useThemeStore } from './store/themeStore'
 import { useEffect } from 'react'
 import AdminLayout from './layouts/AdminLayout'
 import LoginPage from './pages/auth/LoginPage'
 import ForceChangePasswordPage from './pages/auth/ForceChangePasswordPage'
+import NotFoundPage from './pages/NotFoundPage'
 import DashboardPage from './pages/admin/DashboardPage'
 import CampaignsPage from './pages/admin/CampaignsPage'
 import CampusHiringPage from './pages/admin/CampusHiringPage'
@@ -40,6 +42,16 @@ import CompletePage from './pages/candidate/CompletePage'
 import TerminatedPage from './pages/candidate/TerminatedPage'
 import IdentityVerificationPage from './pages/candidate/IdentityVerificationPage'
 
+function getHomePath(user: AuthUser | null): string {
+  if (!user) return '/login'
+  if (user.mustChangePassword) return '/force-change-password'
+
+  if (user.role === 'ADMIN') return '/admin/dashboard'
+  if (user.role === 'RECRUITER') return '/recruiter/dashboard'
+  if (user.role === 'CANDIDATE') return '/candidate/dashboard'
+  return '/login'
+}
+
 function ProtectedRoute({ children, allowedRole, allowPendingPassword }: { children: React.ReactNode; allowedRole?: string; allowPendingPassword?: boolean }) {
   const { user, accessToken } = useAuthStore()
   if (!accessToken || !user) return <Navigate to="/login" replace />
@@ -47,6 +59,12 @@ function ProtectedRoute({ children, allowedRole, allowPendingPassword }: { child
   if (user.mustChangePassword && !allowPendingPassword) return <Navigate to="/force-change-password" replace />
 
   if (allowedRole && user.role !== allowedRole) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function PublicOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { user, accessToken } = useAuthStore()
+  if (accessToken && user) return <Navigate to={getHomePath(user)} replace />
   return <>{children}</>
 }
 
@@ -62,7 +80,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
       <Route path="/force-change-password" element={<ProtectedRoute allowPendingPassword><ForceChangePasswordPage /></ProtectedRoute>} />
 
       {/* Admin routes */}
@@ -137,8 +155,8 @@ export default function App() {
       <Route path="/candidate/terminated" element={<ProtectedRoute allowedRole="CANDIDATE"><TerminatedPage /></ProtectedRoute>} />
       
       {/* Root redirect */}
-      <Route path="/" element={<Navigate to={`/${useAuthStore()?.user?.role?.toLowerCase() || 'login'}`} replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to={getHomePath(user)} replace />} />
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   )
 }

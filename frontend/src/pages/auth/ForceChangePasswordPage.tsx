@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import logo from '../../assets/Indium.png'
+import indiumWhite from '../../assets/indium-w.png'
+import indiumBlack from '../../assets/indium-b.png'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { authApi } from '../../services/api.services'
 import { useAuthStore } from '../../store/authStore'
+import { useThemeStore } from '../../store/themeStore'
 import toast from 'react-hot-toast'
 import { Eye, EyeOff, Lock, ShieldAlert } from 'lucide-react'
 
@@ -26,7 +28,9 @@ export default function ForceChangePasswordPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const { user, clearAuth } = useAuthStore()
+  const { theme } = useThemeStore()
   const navigate = useNavigate()
+  const logo = theme === 'dark' ? indiumWhite : indiumBlack
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -74,7 +78,8 @@ export default function ForceChangePasswordPage() {
 
         <div style={{ textAlign: 'center', marginBottom: '36px' }}>
           <div style={{
-            background: '#ffffff', borderRadius: '12px', padding: '12px 24px',
+            background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#ffffff',
+            border: '1px solid var(--border)', borderRadius: '12px', padding: '12px 24px',
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px',
           }}>
             <img src={logo} alt="Logo" style={{ height: '36px', width: 'auto', objectFit: 'contain', display: 'block' }} />
