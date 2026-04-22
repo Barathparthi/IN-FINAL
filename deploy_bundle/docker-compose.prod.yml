@@ -98,6 +98,9 @@ services:
       - indium-net
 
   frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
     image: ${FRONTEND_IMAGE:-indium-frontend:1.0.0}
     container_name: indium-frontend
     restart: unless-stopped
