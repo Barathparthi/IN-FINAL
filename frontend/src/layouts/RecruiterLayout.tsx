@@ -7,7 +7,7 @@ import { useThemeStore } from '../store/themeStore'
 import { authApi } from '../services/api.services'
 import toast from 'react-hot-toast'
 import {
-  LayoutDashboard, Users, MonitorPlay, LogOut, ChevronRight,
+  LayoutDashboard, Users, MonitorPlay, LogOut,
   Menu, X, Settings, Bell, BarChart2, Lock
 } from 'lucide-react'
 
@@ -135,7 +135,6 @@ export default function RecruiterLayout() {
                   >
                     <item.icon className="nav-icon" size={18} />
                     <span>{item.label}</span>
-                    <ChevronRight size={13} style={{ marginLeft: 'auto', opacity: 0.3 }} />
                   </NavLink>
                 )
               )}

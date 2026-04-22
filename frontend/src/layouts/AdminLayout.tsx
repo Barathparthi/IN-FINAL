@@ -7,7 +7,7 @@ import { useThemeStore } from '../store/themeStore'
 import { authApi } from '../services/api.services'
 import toast from 'react-hot-toast'
 import {
-  LayoutDashboard, Briefcase, Users, LogOut, ChevronRight,
+  LayoutDashboard, Briefcase, Users, LogOut,
   Menu, X, Settings, Shield, Bell, BarChart3, MonitorPlay, BarChart2, GraduationCap
 } from 'lucide-react'
 
@@ -155,7 +155,6 @@ export default function AdminLayout() {
                   >
                     <item.icon className="nav-icon" size={18} />
                     <span>{item.label}</span>
-                    <ChevronRight size={13} style={{ marginLeft: 'auto', opacity: 0.3 }} />
                   </NavLink>
                 )
               )}
