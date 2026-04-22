@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import logo from '../assets/Indium.png'
+import indiumWhite from '../assets/indium-w.png'
+import indiumBlack from '../assets/indium-b.png'
 import { useAuthStore } from '../store/authStore'
+import { useThemeStore } from '../store/themeStore'
 import { authApi } from '../services/api.services'
 import toast from 'react-hot-toast'
 import {
-  LayoutDashboard, Users, MonitorPlay, LogOut, ChevronRight,
+  LayoutDashboard, Users, MonitorPlay, LogOut,
   Menu, X, Settings, Bell, BarChart2, Lock
 } from 'lucide-react'
 
@@ -45,8 +47,10 @@ const PAGE_TITLES: Record<string, string> = {
 export default function RecruiterLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user, clearAuth } = useAuthStore()
+  const { theme } = useThemeStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const logo = theme === 'dark' ? indiumWhite : indiumBlack
 
   // Close sidebar on route change (mobile)
   useEffect(() => { setSidebarOpen(false) }, [location.pathname])
@@ -88,7 +92,7 @@ export default function RecruiterLayout() {
       {/* ── Sidebar ──────────────────────────────────────── */}
       <aside className={`sidebar ${sidebarOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-logo">
-          <div style={{ background: '#ffffff', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#ffffff', border: '1px solid var(--border)', padding: '6px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img src={logo} alt="Logo" style={{ height: '20px', width: 'auto', objectFit: 'contain', display: 'block' }} />
           </div>
           <div>
@@ -131,7 +135,6 @@ export default function RecruiterLayout() {
                   >
                     <item.icon className="nav-icon" size={18} />
                     <span>{item.label}</span>
-                    <ChevronRight size={13} style={{ marginLeft: 'auto', opacity: 0.3 }} />
                   </NavLink>
                 )
               )}

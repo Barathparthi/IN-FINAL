@@ -10,7 +10,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { CampaignFormData, Round } from '../../pages/admin/CreateCampaignPage'
 import { Plus, GripVertical, Trash2, Layers } from 'lucide-react'
-// Use native crypto.randomUUID — no package needed
+import { createId } from '../../utils/id.util'
 
 interface Props {
   form: CampaignFormData
@@ -76,7 +76,7 @@ export default function Step2Pipeline({ form, update, hiringType = 'LATERAL' }: 
 
   const addRound = () => {
     const newRound: Round = {
-      id: crypto.randomUUID(),
+      id: createId(),
       order: form.rounds.length + 1,
       roundType: addType,
       timeLimitMinutes: 30,
