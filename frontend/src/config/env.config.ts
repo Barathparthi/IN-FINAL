@@ -4,8 +4,9 @@ const numberFromEnv = (value: string | undefined, fallback: number) => {
 }
 
 export const ENV = {
-  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api',
-  BACKEND_URL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000',
+  API_BASE_URL: import.meta.env.VITE_API_BASE_URL || '/api',
+  BACKEND_URL:
+    import.meta.env.VITE_BACKEND_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:4000'),
   APP_NAME: import.meta.env.VITE_APP_NAME || 'INDIUM',
   APP_VERSION: import.meta.env.VITE_APP_VERSION || '1.0.0',
   FACE_MODEL_URL: import.meta.env.VITE_FACE_MODEL_URL || 'https://vladmandic.github.io/face-api/model',
