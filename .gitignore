@@ -23,3 +23,6 @@ linux_vm_beginner_local_to_vm_guide.md
 linux_vm_github_clone_deployment_guide.md
 linux_vm_final_production_playbook.md
 linux_vm_github_clone_only_deploy.md
+HTTPS_EXISTING_DEPLOYMENT.md
+HTTPS_IP_ADDRESS_SELF_SIGNED.md
+HTTPS_SETUP_GUIDE.md
