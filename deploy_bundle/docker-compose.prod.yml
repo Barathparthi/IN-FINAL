@@ -61,6 +61,7 @@ services:
     image: judge0/judge0:latest
     container_name: indium-judge0-server
     restart: unless-stopped
+    privileged: true                     # Required for sandbox execution
     depends_on:
       judge0-db:
         condition: service_healthy
@@ -79,6 +80,9 @@ services:
       - indium-net
 
   backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     image: ${BACKEND_IMAGE:-indium-backend:1.0.0}
     container_name: indium-backend
     restart: unless-stopped
