@@ -5,19 +5,24 @@ const API_KEY = process.env.JUDGE0_API_KEY || ''
 const JAVA_LANGUAGE_ID = 62
 const JAVASCRIPT_LANGUAGE_ID = 63
 
-function parseMemoryLimitKb(value: string | undefined, fallback: number): number {
+// Judge0 free tier allows max 512,000 bytes (~500 KB)
+const MAX_MEMORY_BYTES = 512000
+
+function parseMemoryLimitBytes(value: string | undefined, fallbackKb: number): number {
   const parsed = Number.parseInt(value || '', 10)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+  const kb = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackKb
+  // Convert KB to bytes and cap at MAX_MEMORY_BYTES
+  return Math.min(kb * 1024, MAX_MEMORY_BYTES)
 }
 
-const DEFAULT_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_DEFAULT_KB, 512000)
-const JS_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JS_KB, 512000)
-const JAVA_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JAVA_KB, 512000)
+const DEFAULT_MEMORY_BYTES = parseMemoryLimitBytes(process.env.JUDGE0_MEMORY_LIMIT_DEFAULT_KB, 500)
+const JS_MEMORY_BYTES = parseMemoryLimitBytes(process.env.JUDGE0_MEMORY_LIMIT_JS_KB, 500)
+const JAVA_MEMORY_BYTES = parseMemoryLimitBytes(process.env.JUDGE0_MEMORY_LIMIT_JAVA_KB, 500)
 
-function resolveMemoryLimitKb(languageId: number): number {
-  if (languageId === JAVASCRIPT_LANGUAGE_ID) return JS_MEMORY_LIMIT_KB
-  if (languageId === JAVA_LANGUAGE_ID) return JAVA_MEMORY_LIMIT_KB
-  return DEFAULT_MEMORY_LIMIT_KB
+function resolveMemoryLimitBytes(languageId: number): number {
+  if (languageId === JAVASCRIPT_LANGUAGE_ID) return JS_MEMORY_BYTES
+  if (languageId === JAVA_LANGUAGE_ID) return JAVA_MEMORY_BYTES
+  return DEFAULT_MEMORY_BYTES
 }
 
 const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
@@ -88,13 +93,11 @@ function normalizeOutput(data: Judge0SubmissionResponse): string {
   return (data.stdout ?? data.stderr ?? data.compile_output ?? data.message ?? '').trim()
 }
 
-// FIXED: memory_limit capped at 512000 bytes (Judge0 free tier limit)
 async function executeJudge0(sourceCode: string, languageId: number, stdin: string) {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-Auth-Token'] = API_KEY
-  const memoryLimitKb = resolveMemoryLimitKb(languageId)
-  // Judge0 allows max 512000 bytes (500 KB) for submissions
-  const memoryLimitBytes = Math.min(memoryLimitKb * 1024, 512000)
+  const memoryLimitBytes = resolveMemoryLimitBytes(languageId)
+
   try {
     const { data } = await axios.post<Judge0SubmissionResponse>(
       `${URL}/submissions/?base64_encoded=false&wait=true`,
@@ -116,9 +119,9 @@ async function executeJudge0(sourceCode: string, languageId: number, stdin: stri
     const statusCode = err?.response?.status
     const errorData = err?.response?.data
     const errorMsg = typeof errorData === 'string' ? errorData : errorData?.message || err.message
-    
+
     console.error(`[Judge0 Execute Error] Status: ${statusCode}, Language: ${languageId}, Error:`, errorMsg)
-    
+
     const enhancedError = new Error(`Judge0 API Error (${statusCode}): ${errorMsg}`)
     ;(enhancedError as any).originalError = err
     ;(enhancedError as any).statusCode = statusCode
@@ -170,9 +173,9 @@ async function runSmokeProgram(program: Judge0SmokeProgram): Promise<Judge0Smoke
   } catch (err: any) {
     const statusCode = (err as any)?.statusCode
     const message = (err as any)?.message || err?.response?.data?.message || err?.message || 'Program execution failed'
-    
+
     console.error(`[Judge0 Smoke Test] Program: ${program.name}, Error:`, message)
-    
+
     return {
       name: program.name,
       language: program.language,
@@ -270,7 +273,7 @@ export async function runTestCases(params: {
       const data = await executeJudge0(params.sourceCode, languageId, tc.input || '')
       const actual = normalizeOutput(data)
       const expected = String(tc.expectedOutput || '').trim()
-      
+
       return {
         caseIndex: i,
         passed: actual === expected,
