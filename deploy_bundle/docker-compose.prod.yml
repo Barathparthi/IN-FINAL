@@ -69,7 +69,10 @@ services:
     environment:
       RAILS_ENV: production
       DATABASE_URL: postgres://${JUDGE0_DB_USER:-postgres}:${JUDGE0_DB_PASSWORD:-postgres}@judge0-db:5432/${JUDGE0_DB_NAME:-judge0}
-      REDIS_URL: redis://judge0-redis:6379
+      REDIS_URL: redis://judge0-redis:6379/0
+      REDIS_HOST: judge0-redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
     ports:
       - "${JUDGE0_HOST_PORT:-2358}:2358"
     networks:

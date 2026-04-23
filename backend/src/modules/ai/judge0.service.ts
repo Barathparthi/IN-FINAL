@@ -92,26 +92,41 @@ async function executeJudge0(sourceCode: string, languageId: number, stdin: stri
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-Auth-Token'] = API_KEY
   const memoryLimitKb = resolveMemoryLimitKb(languageId)
-  const { data } = await axios.post<Judge0SubmissionResponse>(
-    `${URL}/submissions/?base64_encoded=false&wait=true`,
-    {
-      source_code: sourceCode,
-      language_id: languageId,
-      stdin,
-      cpu_time_limit: 10,
-      wall_time_limit: 20,
-      memory_limit: memoryLimitKb,
-      // Judge0's default `--cg` mode fails on some EC2 cgroup layouts.
-      // For portability, force isolate to run without cgroups.
-      enable_per_process_and_thread_time_limit: true,
-      enable_per_process_and_thread_memory_limit: true,
-    },
-    {
-      timeout: 30000,
-      headers,
-    },
-  )
-  return data
+  try {
+    const { data } = await axios.post<Judge0SubmissionResponse>(
+      `${URL}/submissions/?base64_encoded=false&wait=true`,
+      {
+        source_code: sourceCode,
+        language_id: languageId,
+        stdin,
+        cpu_time_limit: 10,
+        wall_time_limit: 20,
+        memory_limit: memoryLimitKb,
+        // Judge0's default `--cg` mode fails on some EC2 cgroup layouts.
+        // For portability, force isolate to run without cgroups.
+        enable_per_process_and_thread_time_limit: true,
+        enable_per_process_and_thread_memory_limit: true,
+      },
+      {
+        timeout: 30000,
+        headers,
+      },
+    )
+    return data
+  } catch (err: any) {
+    // Provide detailed error context for debugging
+    const statusCode = err?.response?.status
+    const errorData = err?.response?.data
+    const errorMsg = typeof errorData === 'string' ? errorData : errorData?.message || err.message
+    
+    console.error(`[Judge0 Execute Error] Status: ${statusCode}, Language: ${languageId}, Error:`, errorMsg)
+    
+    // Re-throw with enhanced context
+    const enhancedError = new Error(`Judge0 API Error (${statusCode}): ${errorMsg}`)
+    ;(enhancedError as any).originalError = err
+    ;(enhancedError as any).statusCode = statusCode
+    throw enhancedError
+  }
 }
 
 async function pingJudge0(): Promise<{ ok: boolean; latencyMs: number; languageCount?: number; message?: string }> {
@@ -156,13 +171,18 @@ async function runSmokeProgram(program: Judge0SmokeProgram): Promise<Judge0Smoke
       statusDesc: data.status?.description,
     }
   } catch (err: any) {
-    const message = err?.response?.data?.message || err?.message || 'Program execution failed'
+    const statusCode = (err as any)?.statusCode
+    const message = (err as any)?.message || err?.response?.data?.message || err?.message || 'Program execution failed'
+    
+    console.error(`[Judge0 Smoke Test] Program: ${program.name}, Error:`, message)
+    
     return {
       name: program.name,
       language: program.language,
       passed: false,
       expectedOutput: program.expectedOutput.trim(),
       actualOutput: `Error: ${message}`,
+      statusId: statusCode,
     }
   }
 }
