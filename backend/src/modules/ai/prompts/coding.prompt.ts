@@ -15,7 +15,7 @@ export type DSATopicKey = keyof typeof DSA_TOPICS
 // ── JD-Based Coding Prompt ─────────────────────────────────────
 export function codingPrompt(jd: string, role: string, cfg: any): string {
   const total = Math.ceil((cfg.problemCount || 2) * 2.5)
-  const langs = (cfg.allowedLanguages || ['javascript', 'python']).join(', ')
+  const langs = (cfg.allowedLanguages || ['JavaScript', 'Python', 'Java', 'C++', 'C']).join(', ')
 
   return `You are a LeetCode problem setter creating coding problems for a ${role} role interview.
 
@@ -88,7 +88,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
 // ── DSA Coding Prompt ──────────────────────────────────────────
 export function dsaPrompt(cfg: any): string {
   const total = Math.ceil((cfg.problemCount || 2) * 2.5)
-  const langs = (cfg.allowedLanguages || ['javascript', 'python']).join(', ')
+  const langs = (cfg.allowedLanguages || ['JavaScript', 'Python', 'Java', 'C++', 'C']).join(', ')
   const hasTopics = cfg.dsaTopics?.length > 0
 
   let topicInstruction = ''

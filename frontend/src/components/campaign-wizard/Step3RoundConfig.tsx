@@ -13,7 +13,7 @@ const DSA_TOPICS = [
   'Arrays', 'Strings', 'Linked List', 'Trees', 'Graphs', 'Dynamic Programming',
   'Sorting', 'Stack & Queue', 'Math & Bit Manipulation'
 ]
-const ALL_LANGUAGES = ['JavaScript', 'Python', 'Java', 'C++', 'Go', 'TypeScript']
+const ALL_LANGUAGES = ['JavaScript', 'Python', 'Java', 'C++','C']
 
 function DiffBar({ easy, medium, hard }: { easy: number; medium: number; hard: number }) {
   return (
