@@ -117,6 +117,7 @@ export default function ReportsPage() {
     setSelectedCandidateIds(prev => prev.length === candidateList.length ? [] : candidateList.map(c => c.id))
   }
 
+  const bulkRegenerate = async () => {
     if (selectedCandidates.length === 0) {
       toast.error('Select at least one candidate')
       return
