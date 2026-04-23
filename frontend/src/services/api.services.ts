@@ -1,5 +1,19 @@
 import { api } from '../lib/api'
 
+type CodingPayload = {
+  attemptId: string
+  questionId: string
+  sourceCode: string
+  language: string
+}
+
+function normalizeCodingPayload<T extends CodingPayload>(data: T): T {
+  return {
+    ...data,
+    sourceCode: typeof data.sourceCode === 'string' ? data.sourceCode : String(data.sourceCode ?? ''),
+  }
+}
+
 // ── Auth ──────────────────────────────────────────────────────
 export const authApi = {
   login: (email: string, password: string) =>
@@ -141,9 +155,9 @@ export const attemptApi = {
   submitMCQ: (data: { attemptId: string, questionId: string, selectedOptionId: string, timeTakenSeconds: number }) =>
     api.post('/attempt/submit/mcq', data).then(r => r.data),
   submitCoding: (data: { attemptId: string, questionId: string, sourceCode: string, language: string, keystrokeMetrics?: any }) =>
-    api.post('/attempt/submit/coding', data).then(r => r.data),
+    api.post('/attempt/submit/coding', normalizeCodingPayload(data)).then(r => r.data),
   runCoding: (data: { attemptId: string, questionId: string, sourceCode: string, language: string }) =>
-    api.post('/attempt/run/coding', data).then(r => r.data),
+    api.post('/attempt/run/coding', normalizeCodingPayload(data)).then(r => r.data),
   submitInterview: (data: { 
     attemptId: string, 
     questionId: string, 
@@ -159,7 +173,7 @@ export const attemptApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data),
   submitLiveCodingCode: (data: { attemptId: string, questionId: string, sourceCode: string, language: string }) =>
-    api.post('/attempt/live-coding/code', data).then(r => r.data),
+    api.post('/attempt/live-coding/code', normalizeCodingPayload(data)).then(r => r.data),
   submitLiveCodingExplain: (formData: FormData) =>
     api.post('/attempt/live-coding/explain', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data),
   complete: (attemptId: string) =>

@@ -90,6 +90,12 @@ export default function LiveCodingRound() {
       return () => clearTimeout(t)
     }
   }, [loading, q?.id, language])
+
+  useEffect(() => {
+    if (!attempt?.id || !q?.id) return
+    const saved = localStorage.getItem(`indium_livecode_${attempt.id}_${q.id}_${language}`)
+    setSourceCode(saved ?? q.liveCodingStarter ?? '')
+  }, [attempt?.id, q?.id, q?.liveCodingStarter, language])
   const [explanationPrompt, setExplanationPrompt] = useState<string>('')
   const [codeScore, setCodeScore] = useState(0)
 
@@ -453,15 +459,13 @@ export default function LiveCodingRound() {
                       height="100%"
                       width="100%"
                       language={language || 'javascript'}
-                      defaultValue={sourceCode || ''}
-                      onMount={(editor) => {
-                        editor.onDidChangeModelContent(() => {
-                          const val = editor.getValue();
-                          setSourceCode(val);
-                          if (attempt?.id && q?.id) {
-                            localStorage.setItem(`indium_livecode_${attempt.id}_${q.id}_${language}`, val);
-                          }
-                        });
+                      value={sourceCode || ''}
+                      onChange={(val) => {
+                        const nextCode = val ?? ''
+                        setSourceCode(nextCode)
+                        if (attempt?.id && q?.id) {
+                          localStorage.setItem(`indium_livecode_${attempt.id}_${q.id}_${language}`, nextCode)
+                        }
                       }}
                       theme={darkTheme ? 'vs-dark' : 'light'}
                       options={{

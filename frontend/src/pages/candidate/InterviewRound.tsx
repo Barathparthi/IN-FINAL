@@ -812,8 +812,8 @@ export default function InterviewRound() {
             <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 320 }}>
               <div style={{ padding: '6px 12px', background: '#1a1a2e', borderBottom: '1px solid #334155', fontSize: '0.75rem', color: '#64748b' }}>Code Editor</div>
               <Editor key={`lc-${q.id}-${lcLanguage}`} height="278px" language={lcLanguage}
-                defaultValue={lcCode} theme="vs-dark"
-                onMount={editor => { editor.onDidChangeModelContent(() => setLcCode(editor.getValue())) }}
+                value={lcCode} theme="vs-dark"
+                onChange={val => setLcCode(val ?? '')}
                 options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, fontFamily: "'Cascadia Code','Fira Code',monospace", automaticLayout: true }}
               />
             </div>
