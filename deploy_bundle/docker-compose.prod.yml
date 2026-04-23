@@ -61,7 +61,7 @@ services:
     image: judge0/judge0:latest
     container_name: indium-judge0-server
     restart: unless-stopped
-    privileged: true                     # Required for sandbox execution
+    privileged: true
     depends_on:
       judge0-db:
         condition: service_healthy
@@ -76,6 +76,9 @@ services:
       REDIS_DB: 0
     ports:
       - "${JUDGE0_HOST_PORT:-2358}:2358"
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - judge0_box:/box
     networks:
       - indium-net
 
@@ -122,6 +125,7 @@ volumes:
   postgres_data:
   redis_data:
   judge0_db_data:
+  judge0_box:
 
 networks:
   indium-net:
