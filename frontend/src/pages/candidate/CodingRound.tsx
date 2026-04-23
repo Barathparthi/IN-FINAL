@@ -25,7 +25,7 @@ const LANG_OPTIONS = [
 const FONT_SIZES = [12, 13, 14, 15, 16, 18]
 
 const LANG_DEFAULTS: Record<string, string> = {
-  javascript: '// Write your solution here\n\n',
+  javascript: 'function solution() {\n  // Write your code here\n}\n',
   python:     '# Write your solution here\n\n',
   java:       'public class Main {\n    public static void main(String[] args) {\n        // Write your solution here\n    }\n}\n',
   cpp:        '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // Write your solution here\n    return 0;\n}\n',

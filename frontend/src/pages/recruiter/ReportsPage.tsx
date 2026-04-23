@@ -32,6 +32,7 @@ export default function ReportsPage() {
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
   const [bulkGenerating, setBulkGenerating] = useState(false)
   const [bulkDownloading, setBulkDownloading] = useState(false)
+  const [generatingId, setGeneratingId] = useState<string | null>(null)
   const qc = useQueryClient()
 
   const { data: campaigns = [], isLoading: isLoadingCampaigns } = useQuery({
@@ -116,9 +117,12 @@ export default function ReportsPage() {
     setSelectedCandidateIds(prev => prev.length === candidateList.length ? [] : candidateList.map(c => c.id))
   }
 
-  const bulkRegenerate = async () => {
     if (selectedCandidates.length === 0) {
       toast.error('Select at least one candidate')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to regenerate scorecards for ${selectedCandidates.length} candidate(s)?`)) {
       return
     }
 
@@ -456,7 +460,7 @@ export default function ReportsPage() {
                 <span className="badge badge-muted">{candidateList.length} candidates</span>
                 <span className="badge badge-teal">{selectedCandidateIds.length} selected</span>
                   <button className="btn btn-outline btn-sm" onClick={bulkRegenerate} disabled={bulkGenerating || selectedCandidateIds.length === 0}>
-                  {bulkGenerating ? <Loader2 size={14} className="spin-once" /> : <Zap size={14} />}
+                  {bulkGenerating ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
                   Regenerate Selected
                 </button>
                 <button className="btn btn-primary btn-sm" onClick={bulkDownloadZip} disabled={bulkDownloading || selectedCandidateIds.length === 0}>
@@ -532,16 +536,20 @@ export default function ReportsPage() {
                              ) : canGenerate ? (
                                <button 
                                  className="btn btn-sm btn-orange"
+                                 disabled={generatingId === c.id}
                                  onClick={async () => {
+                                   setGeneratingId(c.id)
                                    try {
                                      await recruiterApi.generateScorecard(c.id)
                                      toast.success('AI scorecard generation queued')
                                    } catch {
                                      toast.error('Failed to start generation')
+                                   } finally {
+                                     setGeneratingId(null)
                                    }
                                  }}
                                >
-                                 Generate
+                                 {generatingId === c.id ? <Loader2 size={14} className="spin" /> : 'Generate'}
                                </button>
                              ) : (
                                <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>

@@ -132,14 +132,14 @@ export default function AdminScorecardPage() {
         </div>
         {hasScorecard && (
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
-             <button 
-               className="btn btn-outline btn-sm"
-               disabled={generateMutation.isPending || isGenerating}
-               onClick={() => { if (confirm('Regenerate analysis?')) generateMutation.mutate() }}
-             >
-               {generateMutation.isPending || isGenerating ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
-               Regenerate
-             </button>
+              <button 
+                className="btn btn-outline btn-sm"
+                disabled={generateMutation.isPending || isGenerating}
+                onClick={() => { if (confirm('Are you sure you want to generate again?')) generateMutation.mutate() }}
+              >
+                {generateMutation.isPending || isGenerating ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
+                Regenerate
+              </button>
              <button className="btn btn-outline btn-sm"
                disabled={downloadMutation.isPending}
                onClick={() => downloadMutation.mutate()}>
@@ -174,9 +174,9 @@ export default function AdminScorecardPage() {
             The recruiter hasn't generated the AI analysis yet. You can trigger it now.
           </p>
           <button className="btn btn-primary"
-            disabled={generateMutation.isPending}
+            disabled={generateMutation.isPending || isGenerating}
             onClick={() => generateMutation.mutate()}>
-            {generateMutation.isPending ? <div className="spinner spinner-sm" /> : <Zap size={15} />}
+            {generateMutation.isPending || isGenerating ? <Loader2 size={15} className="spin" /> : <Zap size={15} />}
             Generate Scorecard
           </button>
         </div>

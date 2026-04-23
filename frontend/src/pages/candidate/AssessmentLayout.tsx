@@ -263,7 +263,18 @@ export default function AssessmentLayout() {
 
           {/* Integrated Proctoring Camera — only if session is active and proctoring is enabled */}
           {sessionId && proctoringEnabled && (
-            <div style={{ padding: '10px', marginTop: 'auto' }}>
+            <div style={{
+              position: 'fixed',
+              top: 24,
+              right: 24,
+              zIndex: 1000,
+              width: 240,
+              background: '#18181b',
+              borderRadius: 16,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              border: '1px solid var(--border)',
+              padding: 10
+            }}>
               <ProctoringCamera 
                 candidateId={profileData.id}
                 attemptId={attemptId}

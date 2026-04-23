@@ -12,7 +12,7 @@ export type AptitudeTopicKey = keyof typeof APTITUDE_TOPICS
 
 // ── Behavioral MCQ Prompt ─────────────────────────────────────
 export function behavioralMcqPrompt(role: string, cfg: any): string {
-  const total  = Math.ceil((cfg.totalQuestions || 20) * 2.5)
+  const total  = Math.ceil((cfg.totalQuestions || 20) * 1.5)
   const easy   = Math.round(total * ((cfg.difficultyEasy   || 30) / 100))
   const medium = Math.round(total * ((cfg.difficultyMedium || 40) / 100))
   const hard   = total - easy - medium
@@ -59,7 +59,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
 
 // ── JD-Based MCQ Prompt ────────────────────────────────────────
 export function mcqPrompt(jd: string, role: string, cfg: any): string {
-  const total  = Math.ceil((cfg.totalQuestions || 20) * 2.5)
+  const total  = Math.ceil((cfg.totalQuestions || 20) * 1.5)
   const easy   = Math.round(total * ((cfg.difficultyEasy   || 30) / 100))
   const medium = Math.round(total * ((cfg.difficultyMedium || 40) / 100))
   const hard   = total - easy - medium
@@ -120,7 +120,7 @@ Respond ONLY with valid JSON — no markdown, no explanation:
 
 // ── Aptitude MCQ Prompt ────────────────────────────────────────
 export function aptitudePrompt(cfg: any): string {
-  const total      = Math.ceil((cfg.totalQuestions || 20) * 2.5)
+  const total      = Math.ceil((cfg.totalQuestions || 20) * 1.5)
   const easy       = Math.round(total * ((cfg.difficultyEasy   || 30) / 100))
   const medium     = Math.round(total * ((cfg.difficultyMedium || 40) / 100))
   const hard       = total - easy - medium
