@@ -11,8 +11,8 @@ function parseMemoryLimitKb(value: string | undefined, fallback: number): number
 }
 
 const DEFAULT_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_DEFAULT_KB, 512000)
-const JS_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JS_KB, 640000)
-const JAVA_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JAVA_KB, 2097152)
+const JS_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JS_KB, 512000)
+const JAVA_MEMORY_LIMIT_KB = parseMemoryLimitKb(process.env.JUDGE0_MEMORY_LIMIT_JAVA_KB, 512000)
 
 function resolveMemoryLimitKb(languageId: number): number {
   if (languageId === JAVASCRIPT_LANGUAGE_ID) return JS_MEMORY_LIMIT_KB
@@ -88,12 +88,13 @@ function normalizeOutput(data: Judge0SubmissionResponse): string {
   return (data.stdout ?? data.stderr ?? data.compile_output ?? data.message ?? '').trim()
 }
 
-// FIXED: Removed invalid fields, converted memory_limit to bytes
+// FIXED: memory_limit capped at 512000 bytes (Judge0 free tier limit)
 async function executeJudge0(sourceCode: string, languageId: number, stdin: string) {
   const headers: Record<string, string> = {}
   if (API_KEY) headers['X-Auth-Token'] = API_KEY
   const memoryLimitKb = resolveMemoryLimitKb(languageId)
-  const memoryLimitBytes = memoryLimitKb * 1024   // Judge0 expects bytes
+  // Judge0 allows max 512000 bytes (500 KB) for submissions
+  const memoryLimitBytes = Math.min(memoryLimitKb * 1024, 512000)
   try {
     const { data } = await axios.post<Judge0SubmissionResponse>(
       `${URL}/submissions/?base64_encoded=false&wait=true`,
@@ -104,7 +105,6 @@ async function executeJudge0(sourceCode: string, languageId: number, stdin: stri
         cpu_time_limit: 10,
         wall_time_limit: 20,
         memory_limit: memoryLimitBytes,
-        // Removed: enable_per_process_and_thread_time_limit, enable_per_process_and_thread_memory_limit
       },
       {
         timeout: 30000,
