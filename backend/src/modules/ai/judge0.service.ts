@@ -99,6 +99,7 @@ async function executeJudge0(sourceCode: string, languageId: number, stdin: stri
   const memoryLimitBytes = resolveMemoryLimitBytes(languageId)
 
   try {
+    console.log(`[Judge0] Sending source code (first 200 chars): ${sourceCode.substring(0, 200)}`);
     const { data } = await axios.post<Judge0SubmissionResponse>(
       `${URL}/submissions/?base64_encoded=false&wait=true`,
       {
