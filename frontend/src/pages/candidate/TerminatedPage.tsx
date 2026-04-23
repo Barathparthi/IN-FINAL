@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ShieldAlert, AlertTriangle } from 'lucide-react'
+import { authApi } from '../../services/api.services'
+import { useAuthStore } from '../../store/authStore'
 
 export default function TerminatedPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { clearAuth } = useAuthStore()
   const [secondsLeft, setSecondsLeft] = useState(10)
   
   // Might receive type = 'proctoring' | 'failed' + reason
@@ -12,7 +15,13 @@ export default function TerminatedPage() {
   const reason = location.state?.reason || 'Unknown error. Your session was ended.'
 
   const isElectron = !!(window as any).electronBridge?.isElectron
-  const handleExit = () => {
+  const handleExit = async () => {
+    try {
+      await authApi.logout()
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+    clearAuth()
     if (isElectron) {
       (window as any).electronBridge.notifyTestComplete()
     } else {
@@ -70,7 +79,7 @@ export default function TerminatedPage() {
         </div>
 
         <button className="btn btn-primary" style={{ width: '100%' }} onClick={handleExit}>
-          {isElectron ? 'Exit Assessment App' : 'Return to Login'}
+          {isElectron ? 'Exit & Logout' : 'Logout'}
         </button>
       </div>
     </div>

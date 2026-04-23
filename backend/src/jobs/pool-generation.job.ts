@@ -115,7 +115,6 @@ poolGenerationQueue.process('generate', async (job) => {
           examples:            q.examples,
           testCases:           q.testCases,
           starterCode:         q.starterCode,
-          solutionCode:        q.wrapperCode || {},
           // Interview
           prompt:              q.prompt,
           evaluationRubric:    q.evaluationRubric,

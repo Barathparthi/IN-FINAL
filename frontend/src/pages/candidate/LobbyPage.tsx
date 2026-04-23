@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { candidateApi } from '../../services/api.services'
+import { candidateApi, authApi } from '../../services/api.services'
 import {
   AlertTriangle, Clock, FileText,
   Sun, Moon, Lock, CheckCircle, XCircle, ChevronRight,
@@ -14,7 +14,7 @@ import toast from 'react-hot-toast'
 
 export default function LobbyPage() {
   const navigate = useNavigate()
-  const { user } = useAuthStore()
+  const { user, clearAuth } = useAuthStore()
   const { theme, toggleTheme } = useThemeStore()
 
   const [rulesAccepted, setRulesAccepted]   = useState(false)
@@ -56,6 +56,17 @@ export default function LobbyPage() {
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop())
     streamRef.current = null
+  }
+
+  const handleLogout = async () => {
+    stopCamera()
+    try {
+      await authApi.logout()
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+    clearAuth()
+    navigate('/login')
   }
 
   // ── System Check ──────────────────────────────────────────────
@@ -274,6 +285,13 @@ export default function LobbyPage() {
               Based on the auto-evaluation of your previous round, you did not meet the required
               threshold to continue. Thank you for participating.
             </p>
+            <button
+              className="btn btn-outline"
+              style={{ marginTop: 18, minWidth: 180 }}
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
           </div>
         )}
 
@@ -291,6 +309,13 @@ export default function LobbyPage() {
               Congratulations! You have successfully crossed all hurdles. 
               Our recruitment team will now conduct a final review of your scorecard and contact you via email regarding the next steps.
             </p>
+            <button
+              className="btn btn-outline"
+              style={{ marginTop: 18, minWidth: 180 }}
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
           </div>
         )}
 
@@ -315,6 +340,13 @@ export default function LobbyPage() {
               Our team is currently evaluating your performance. 
               Please stay on this page or check back later — the next round will automatically unlock once approved.
             </p>
+            <button
+              className="btn btn-outline"
+              style={{ marginTop: 18, minWidth: 180 }}
+              onClick={handleLogout}
+            >
+              Logout
+            </button>
           </div>
         )}
 

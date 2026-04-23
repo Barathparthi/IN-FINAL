@@ -1,15 +1,24 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { CheckCircle, Clock, ArrowLeft } from 'lucide-react'
+import { authApi } from '../../services/api.services'
+import { useAuthStore } from '../../store/authStore'
 
 export default function CompletePage() {
   const navigate    = useNavigate()
   const location    = useLocation()
+  const { clearAuth } = useAuthStore()
   const pendingReview = location.state?.pendingReview || false
   const [secondsLeft, setSecondsLeft] = useState(10)
 
   const isElectron = !!(window as any).electronBridge?.isElectron
-  const handleExit = () => {
+  const handleExit = async () => {
+    try {
+      await authApi.logout()
+    } catch (err) {
+      console.error('Logout error:', err)
+    }
+    clearAuth()
     if (isElectron) {
       (window as any).electronBridge.notifyTestComplete()
     } else {
@@ -121,7 +130,7 @@ export default function CompletePage() {
           onClick={handleExit}
         >
           {!isElectron && <ArrowLeft size={16} />}
-          {isElectron ? 'Exit Assessment App' : 'Return to Login'}
+          {isElectron ? 'Exit & Logout' : 'Logout'}
         </button>
 
       </div>
