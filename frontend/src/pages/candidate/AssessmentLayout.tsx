@@ -265,7 +265,7 @@ export default function AssessmentLayout() {
           {sessionId && proctoringEnabled && (
             <div style={{
               position: 'fixed',
-              top: 24,
+              top: 72,
               right: 24,
               zIndex: 1000,
               width: 240,
