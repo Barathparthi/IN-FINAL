@@ -23,6 +23,7 @@ JOB DESCRIPTION:
 ${jd}
 
 Generate exactly ${total} coding problems directly relevant to the tech stack in the JD, in authentic LeetCode style.
+Supported languages: ${langs}
 Difficulty split: ${cfg.difficultyEasy || 0}% Easy, ${cfg.difficultyMedium || 50}% Medium, ${cfg.difficultyHard || 50}% Hard.
 
 RELEVANCE RULES:
@@ -78,10 +79,6 @@ Respond ONLY with valid JSON — no markdown, no explanation:
         "python": "from typing import List\\nfrom collections import defaultdict\\n\\nclass Solution:\\n    def groupAnagramLogs(self, logs: List[str]) -> List[List[str]]:\\n        ",
         "java": "import java.util.*;\\n\\nclass Solution {\\n    public List<List<String>> groupAnagramLogs(String[] logs) {\\n        \\n    }\\n}",
         "cpp": "class Solution {\\npublic:\\n    vector<vector<string>> groupAnagramLogs(vector<string>& logs) {\\n        \\n    }\\n};"
-      },
-      "wrapperCode": {
-        "javascript": "const fs = require('fs');\\nconst input = fs.readFileSync(0, 'utf-8').trim();\\nconst logs = JSON.parse(input);\\nconsole.log(JSON.stringify(groupAnagramLogs(logs)));",
-        "python": "import sys\\nimport json\\n\\nif __name__ == '__main__':\\n    input_data = sys.stdin.read().strip()\\n    logs = json.loads(input_data)\\n    sol = Solution()\\n    res = sol.groupAnagramLogs(logs)\\n    print(json.dumps(res, separators=(',', ':')))"
       }
     }
   ]
@@ -110,6 +107,7 @@ Cover a balanced mix across: Arrays, Strings, Linked Lists, Trees, Dynamic Progr
   return `You are a LeetCode problem setter creating high-quality DSA problems for corporate technical interviews.
 
 Generate exactly ${total} problems in authentic LeetCode style.
+Supported languages: ${langs}
 Difficulty split: ${cfg.difficultyEasy || 0}% Easy, ${cfg.difficultyMedium || 50}% Medium, ${cfg.difficultyHard || 50}% Hard.
 ${topicInstruction}
 
@@ -135,9 +133,8 @@ LEETCODE STYLE RULES — every problem must follow all of these:
 5. Constraints section must include: array size range (1 <= n <= 10^5), value range (-10^9 <= nums[i] <= 10^9), expected time complexity hint, and any special constraints.
 6. Function signature must be clearly defined in the starter code with proper parameter names and return type comments.
 7. Test cases: EXACTLY 5 test cases total -> 2 visible (matching your examples exactly, 'isHidden: false') + 3 hidden edge cases (empty-ish inputs, large n, negative values, duplicates, 'isHidden: true').
-8. Starter code must have JSDoc/docstring with @param and @return annotations.
+8. Starter code must have JSDoc/@param/@return with domain-relevant parameter names. Use class-based or function-based LeetCode boilerplates.
 9. NEVER generate trivial problems: no "find maximum", no "count elements", no "sum of array", no "reverse a string" as standalone problems.
-10. **CRITICAL: EXECUTION WRAPPER**: For every language provided in starterCode, you MUST provide corresponding \`wrapperCode\`. The wrapper code is appended to the user's code during execution. It must read all inputs from standard input (stdin), parse them according to the test case format, instantiate the class/function, call it, and print the result to stdout.
 
 Respond ONLY with valid JSON — no markdown, no explanation, just the JSON object:
 {
@@ -168,10 +165,6 @@ Respond ONLY with valid JSON — no markdown, no explanation, just the JSON obje
         "python": "class Solution:\\n    def twoSum(self, nums: List[int], target: int) -> List[int]:\\n        ",
         "java": "class Solution {\\n    public int[] twoSum(int[] nums, int target) {\\n        \\n    }\\n}",
         "cpp": "class Solution {\\npublic:\\n    vector<int> twoSum(vector<int>& nums, int target) {\\n        \\n    }\\n};"
-      },
-      "wrapperCode": {
-        "javascript": "const fs = require('fs');\\nconst lines = fs.readFileSync(0, 'utf-8').trim().split('\\n');\\nconst nums = JSON.parse(lines[0]);\\nconst target = parseInt(lines[1]);\\nconsole.log(JSON.stringify(twoSum(nums, target)));",
-        "python": "import sys\\nimport json\\n\\nif __name__ == '__main__':\\n    lines = sys.stdin.read().strip().split('\\n')\\n    if len(lines) >= 2:\\n        nums = json.loads(lines[0])\\n        target = int(lines[1])\\n        sol = Solution()\\n        res = sol.twoSum(nums, target)\\n        print(json.dumps(res, separators=(',', ':')))"
       }
     }
   ]

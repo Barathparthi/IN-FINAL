@@ -147,6 +147,7 @@ JOB DESCRIPTION:
 ${jd}
 ${resumeSection}
 Generate exactly ${total} live coding problems.
+Supported languages: ${langs}
 
 PROBLEM DESIGN RULES:
 - Each problem must be solvable in 15–25 minutes
@@ -163,7 +164,6 @@ TEST CASE RULES:
 - Expected output must be EXACT — no ambiguity
 
 EXECUTION RULES (CRITICAL):
-- You MUST generate \`wrapperCode\` that reads from standard input (stdin), calls the candidate's function, and prints to stdout.
 - **MANDATORY VISUAL DIAGRAM**: For EVERY problem, you MUST include a visual representation in the problem statement. Use Markdown Tables or Markdown Code Blocks (with ASCII art).
   *Example Diagram (ASCII)*:
   \`\`\`
@@ -208,10 +208,6 @@ Respond ONLY with valid JSON:
         "javascript": "function stub with JSDoc",
         "python": "function stub with type hints",
         "java": "import java.util.*;\\n\\nclass Solution {\\n    // ...\\n}"
-      },
-      "wrapperCode": {
-        "javascript": "const fs = require('fs'); const input = fs.readFileSync(0, 'utf-8').trim(); ... console.log(...);",
-        "python": "import sys, json; if __name__ == '__main__': lines = sys.stdin.read().strip().split('\\n'); ... print(...)"
       },
       "explanationPrompt": "Conversational follow-up that references the problem specifically — e.g. 'I see you used a hash map here — walk me through why you made that choice over a simple array scan, and what's the time complexity of your lookup?'",
       "explanationRubric": "GENUINE SIGNALS: explains why they chose specific data structure, mentions exact complexity, can describe what changes if constraints change. COPIED CODE SIGNALS: explanation uses different terminology than code, can't explain specific lines, gives textbook definition instead of describing their implementation. SCORING: 9-10 = explains own code fluently. 7-8 = understands approach with minor gaps. 5-6 = understands generally but can't explain details. 3-4 = vague, likely didn't write it. 0-2 = explanation contradicts or can't describe the code.",
