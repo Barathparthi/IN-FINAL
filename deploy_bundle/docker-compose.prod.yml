@@ -74,10 +74,10 @@ services:
       REDIS_HOST: judge0-redis
       REDIS_PORT: 6379
       REDIS_DB: 0
+      ISOLATE_CGROUPS: "no"
     ports:
       - "${JUDGE0_HOST_PORT:-2358}:2358"
     volumes:
-      - /sys/fs/cgroup:/sys/fs/cgroup:ro
       - judge0_box:/box
     networks:
       - indium-net
