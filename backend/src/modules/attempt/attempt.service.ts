@@ -284,17 +284,14 @@ export async function submitCodingAnswer(input: SubmitCodingInput) {
 
   const question = await prisma.question.findUniqueOrThrow({
     where: { id: input.questionId },
-    select: { testCases: true, solutionCode: true },
+    select: { testCases: true },
   })
 
   const submission = await prisma.codingSubmission.create({
     data: { attemptId: input.attemptId, questionId: input.questionId, language: input.language, sourceCode: input.sourceCode, keystrokeMetrics: input.keystrokeMetrics, statusDesc: 'PENDING' },
   })
 
-  const wrapper = (question.solutionCode as any)?.[input.language] || ''
-  const executableCode = input.sourceCode + '\n' + wrapper
-  
-  runTestCasesWithRetry(submission.id, { ...input, sourceCode: executableCode }, question.testCases as any[])
+  runTestCasesWithRetry(submission.id, input, question.testCases as any[])
 
   return { ...submission, message: 'Submission received. Test cases running.' }
 }
@@ -317,11 +314,9 @@ export async function runCodingTestCases(input: SubmitCodingInput) {
   await enforceTimeLimit(input.attemptId)
   const question = await prisma.question.findUniqueOrThrow({
     where: { id: input.questionId },
-    select: { testCases: true, solutionCode: true },
+    select: { testCases: true },
   })
-  const wrapper = (question.solutionCode as any)?.[input.language] || ''
-  const executableCode = input.sourceCode + '\n' + wrapper
-  const allResults = await runTestCases({ sourceCode: executableCode, language: input.language, testCases: question.testCases as any[] })
+  const allResults = await runTestCases({ sourceCode: input.sourceCode, language: input.language, testCases: question.testCases as any[] })
   
   // ── FIX: Hide hidden test case actual outputs from the frontend /run API
   const safeResults = allResults.results.map((r: any) => {
@@ -470,7 +465,7 @@ export async function submitLiveCodingCode(input: SubmitLiveCodingInput) {
 
   const question = await prisma.question.findUniqueOrThrow({
     where: { id: input.questionId },
-    select: { liveCodingTestCases: true, explanationPrompt: true, liveCodingProblem: true, solutionCode: true },
+    select: { liveCodingTestCases: true, explanationPrompt: true, liveCodingProblem: true },
   })
 
   // Run code through Judge0
@@ -480,9 +475,7 @@ export async function submitLiveCodingCode(input: SubmitLiveCodingInput) {
 
   if (testCases.length > 0) {
     try {
-      const wrapper = (question.solutionCode as any)?.[input.language] || ''
-      const executableCode = input.sourceCode + '\n' + wrapper
-      const results = await runTestCases({ sourceCode: executableCode, language: input.language, testCases })
+      const results = await runTestCases({ sourceCode: input.sourceCode, language: input.language, testCases })
       codeScore = calculateCodingScore(results.passed, results.total) // 0–10
       testResults = results
     } catch {
