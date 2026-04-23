@@ -16,6 +16,8 @@ export async function judge0Smoke(_req: Request, res: Response, next: NextFuncti
 export async function judge0Run(req: Request, res: Response, next: NextFunction) {
   try {
     const { sourceCode, language, stdin, testCases } = req.body
+     // ✅ Add this debug line
+    console.log(`[API] Received sourceCode length: ${sourceCode?.length}, first 100 chars: ${sourceCode?.substring(0, 100)}`);
 
     if (!sourceCode || !language) {
       return res.status(400).json({ error: 'sourceCode and language are required' })
