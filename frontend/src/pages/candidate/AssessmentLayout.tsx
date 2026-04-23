@@ -13,11 +13,13 @@ export default function AssessmentLayout() {
   const { roundId } = useParams()
   const { theme, toggleTheme } = useThemeStore()
   const isElectron = (window as any).electronAPI?.isElectron
+  const allowDevtools = new URLSearchParams(window.location.search).has('devtools')
 
   // Violation reporting proxy (to be hooked into ProctoringCamera)
   const reportFnRef = useRef<((type: string, isStrike: boolean, screenshot?: string) => void) | null>(null)
 
   const { isFullscreen, enterFullscreen } = useAssessmentLockdown({
+    enabled: !allowDevtools,
     onViolationReport: (type) => {
       // Trigger a formal strike with evidence when a lockdown rule is broken
       reportFnRef.current?.(type, true)
@@ -295,11 +297,6 @@ export default function AssessmentLayout() {
           }} />
         </main>
       </div>
-
-
-
-
-
     </div>
   )
 }

@@ -456,9 +456,9 @@ export default function LiveCodingRound() {
                   <div style={{ height: '100%', width: '100%' }}>
                     <Editor
                       key={`editor-${q.id || 'default'}-${language}`}
-                      height="100%"
+                      height="calc(100vh - 200px)"
                       width="100%"
-                      language={language || 'javascript'}
+                      language={language === 'cpp' ? 'cpp' : language}
                       value={sourceCode || ''}
                       onChange={(val) => {
                         const nextCode = val ?? ''
@@ -473,6 +473,7 @@ export default function LiveCodingRound() {
                         fontSize: fontSize,
                         automaticLayout: true,
                         scrollBeyondLastLine: false,
+                        wordWrap: 'on',
                         fontFamily: "'Cascadia Code','Fira Code',monospace",
                         renderLineHighlight: 'gutter',
                         lineNumbers: lineNums ? 'on' : 'off',

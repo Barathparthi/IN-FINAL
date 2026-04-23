@@ -465,6 +465,7 @@ export default function CodingRound() {
                 lineHeight: 1.65,
                 padding: { top: 18, bottom: 18 },
                 scrollBeyondLastLine: false,
+                wordWrap: 'on',
                 automaticLayout: true,
                 renderLineHighlight: 'gutter',
                 smoothScrolling: true,

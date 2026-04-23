@@ -814,7 +814,7 @@ export default function InterviewRound() {
               <Editor key={`lc-${q.id}-${lcLanguage}`} height="278px" language={lcLanguage}
                 value={lcCode} theme="vs-dark"
                 onChange={val => setLcCode(val ?? '')}
-                options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, fontFamily: "'Cascadia Code','Fira Code',monospace", automaticLayout: true }}
+                options={{ minimap: { enabled: false }, fontSize: 14, scrollBeyondLastLine: false, wordWrap: 'on', fontFamily: "'Cascadia Code','Fira Code',monospace", automaticLayout: true }}
               />
             </div>
 

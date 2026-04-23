@@ -327,7 +327,23 @@ export default function MixedRound() {
         </div>
 
         <div style={{ flex: 1, position:'relative' }}>
-          <Editor height="100%" language={selectedLanguage === 'cpp' ? 'cpp' : selectedLanguage} theme={darkTheme ? "vs-dark" : "light"} value={codingCodes[q.id]?.[selectedLanguage] || ''} onChange={handleCodeChange} onMount={handleEditorMount} options={{ minimap: { enabled: false }, fontSize, fontFamily: "'Cascadia Code','Fira Code','JetBrains Mono',monospace", lineNumbers: lineNums ? 'on' : 'off' }} />
+          <Editor
+            height="100%"
+            language={selectedLanguage === 'cpp' ? 'cpp' : selectedLanguage}
+            theme={darkTheme ? 'vs-dark' : 'light'}
+            value={codingCodes[q.id]?.[selectedLanguage] || ''}
+            onChange={handleCodeChange}
+            onMount={handleEditorMount}
+            options={{
+              minimap: { enabled: false },
+              fontSize,
+              fontFamily: "'Cascadia Code','Fira Code','JetBrains Mono',monospace",
+              lineNumbers: lineNums ? 'on' : 'off',
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+            }}
+          />
         </div>
 
         <div style={{ height: '140px', background: '#0a0a14', borderTop: '2px solid #1e293b', flexShrink:0, display:'flex', flexDirection:'column' }}>
