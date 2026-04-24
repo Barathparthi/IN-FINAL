@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { mcqPrompt, aptitudePrompt, behavioralMcqPrompt } from './prompts/mcq.prompt'
+import { mcqPrompt, aptitudePrompt } from './prompts/mcq.prompt'
 import { codingPrompt, dsaPrompt } from './prompts/coding.prompt'
 import {
   interviewPrompt,
@@ -75,12 +75,6 @@ export async function generateMCQs(jd: string, role: string, cfg: any) {
     )
   }
 
-  if (split.BEHAVIORAL > 0) {
-    jobs.push(
-      chat(behavioralMcqPrompt(role, { ...cfg, totalQuestions: split.BEHAVIORAL }))
-        .then((res) => ({ category: 'BEHAVIORAL' as McqCategory, questions: toQuestionArray(res) })),
-    )
-  }
 
   const generated = await Promise.all(jobs)
   return generated.flatMap(({ category, questions }) => withCategoryTag(questions, category))
