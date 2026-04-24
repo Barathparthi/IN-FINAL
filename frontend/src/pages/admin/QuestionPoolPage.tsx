@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { questionApi } from '../../services/api.services'
 import {
   ArrowLeft, RefreshCw, CheckCircle, X, Check,
-  AlertTriangle, ThumbsUp, ThumbsDown,
+  AlertTriangle, ThumbsUp, ThumbsDown, Loader2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -225,11 +225,11 @@ export default function QuestionPoolPage() {
   const generateMutation = useMutation({
     mutationFn: () => questionApi.generatePool(id!),
     onSuccess: () => {
-      toast.success('Regeneration started! Questions will be ready in ~60 seconds.')
+      toast.success('Generation started! Questions will be ready in ~60 seconds.')
       qc.invalidateQueries({ queryKey: ['question-pool', id] })
       qc.invalidateQueries({ queryKey: ['approval-status', id] })
     },
-    onError: () => toast.error('Failed to trigger regeneration'),
+    onError: () => toast.error('Failed to trigger generation'),
   })
 
   const stopMutation = useMutation({
@@ -283,9 +283,17 @@ export default function QuestionPoolPage() {
         </div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           <button className="btn btn-outline btn-sm"
-            onClick={() => generateMutation.mutate()}
+            onClick={() => {
+              if (confirm('Are you sure you want to generate again?')) {
+                generateMutation.mutate()
+              }
+            }}
             disabled={generateMutation.isPending || isGenerating}>
-            <RefreshCw size={14} /> Regenerate
+            {generateMutation.isPending || isGenerating 
+              ? <Loader2 size={14} className="spin" /> 
+              : <RefreshCw size={14} />
+            }
+            Regenerate
           </button>
         </div>
       </div>
@@ -402,8 +410,13 @@ export default function QuestionPoolPage() {
           <div className="empty-title">No questions yet</div>
           <div className="empty-desc">Generate the AI question pool to start reviewing</div>
           <button className="btn btn-primary btn-sm" style={{ marginTop:14 }}
-            onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
-            <RefreshCw size={14} /> Generate Now
+            onClick={() => generateMutation.mutate()} 
+            disabled={generateMutation.isPending || isGenerating}>
+            {generateMutation.isPending || isGenerating 
+              ? <Loader2 size={14} className="spin" /> 
+              : <RefreshCw size={14} />
+            }
+            Generate Now
           </button>
         </div>
       ) : (
