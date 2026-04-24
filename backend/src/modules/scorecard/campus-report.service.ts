@@ -5,9 +5,9 @@ import type { ReportData, InterviewPreview } from './report.service'
 // ── Brand colours ─────────────────────────────────────────────
 const ORANGE  = '#FB851E'      // Primary
 const TEAL    = '#23979C'      // Secondary
-const GREEN   = '#86FE90'      // Success
+const GREEN   = '#16A34A'      // Success (darker for better visibility)
 const RED     = '#FB371E'      // Danger / Alert
-const AMBER   = '#EDFC81'      // Warning / Accent (Yellow)
+const AMBER   = '#B45309'      // Warning / Accent (darker for better visibility)
 const GRAY    = '#3A3A3A'      // Base
 const LGRAY   = '#EFEAE3'      // Cream — light text / surfaces
 const DARK    = '#3A3A3A'      // Base / Surfaces
@@ -28,6 +28,69 @@ function pageCheck(doc: any, needed = 60) {
 
 function hRule(doc: any, color = BORDER, lm = MARGIN) {
   doc.moveTo(lm, doc.y).lineTo(pw(doc) - lm, doc.y).lineWidth(0.5).stroke(color)
+}
+
+function drawWrappedTextBox(
+  doc: any,
+  text: string,
+  opts: {
+    x: number
+    width: number
+    bg: string
+    stroke: string
+    fg: string
+    font: string
+    fontSize: number
+    lineGap?: number
+    padX?: number
+    padY?: number
+  },
+) {
+  const lineGap = opts.lineGap ?? 1
+  const padX = opts.padX ?? 10
+  const padY = opts.padY ?? 10
+  const safeText = (text ?? '').replace(/\r\n/g, '\n')
+  const lines = safeText.split('\n')
+  const contentW = opts.width - padX * 2
+  let start = 0
+
+  while (start < lines.length) {
+    if (doc.y > ph(doc) - 80) doc.addPage()
+
+    const maxBoxH = ph(doc) - 50 - doc.y
+    const maxTextH = Math.max(20, maxBoxH - padY * 2)
+
+    doc.font(opts.font).fontSize(opts.fontSize)
+
+    let end = start + 1
+    let chunk = lines[start] ?? ''
+    let chunkH = doc.heightOfString(chunk || ' ', { width: contentW, lineGap })
+
+    while (end < lines.length) {
+      const nextChunk = `${chunk}\n${lines[end]}`
+      const nextH = doc.heightOfString(nextChunk, { width: contentW, lineGap })
+      if (nextH > maxTextH) break
+      chunk = nextChunk
+      chunkH = nextH
+      end += 1
+    }
+
+    if (end === start) {
+      end = start + 1
+      chunk = lines[start] || ' '
+      chunkH = Math.min(maxTextH, doc.heightOfString(chunk, { width: contentW, lineGap }))
+    }
+
+    const boxH = chunkH + padY * 2
+    const boxY = doc.y
+
+    doc.rect(opts.x, boxY, opts.width, boxH).fill(opts.bg).stroke(opts.stroke)
+    doc.fillColor(opts.fg).font(opts.font).fontSize(opts.fontSize)
+      .text(chunk || ' ', opts.x + padX, boxY + padY, { width: contentW, lineGap })
+
+    doc.y = boxY + boxH + 6
+    start = end
+  }
 }
 
 // ── Section title with teal left accent ──────────────────────
@@ -53,7 +116,7 @@ function pill(doc: any, x: number, y: number, w: number, h: number, text: string
 
 // ── Recommendation classify ───────────────────────────────────
 function classifyRec(fitPct: number, trustScore: number) {
-  if (fitPct >= 76 && trustScore >= 72) return { label: 'FAST-TRACK', bg: GREEN }
+  if (fitPct >= 76 && trustScore >= 72) return { label: 'STRONG-HIRE', bg: GREEN }
   if (fitPct >= 62 && trustScore >= 62) return { label: 'HIRE',       bg: TEAL  }
   if (fitPct >= 50 && trustScore >= 52) return { label: 'WATCHLIST',  bg: AMBER }
   return                                       { label: 'NO HIRE',    bg: RED   }
@@ -408,7 +471,7 @@ export function generateCampusReportPDF(data: ReportData): Readable {
     tableY += ROW_H
   })
 
-  doc.y = tableY + 12
+  doc.y = tableY + 6
 
   // ── CODING ANSWERS (if any) ───────────────────────────────────
   if (codingAnswerQueue.length > 0) {
@@ -416,17 +479,18 @@ export function generateCampusReportPDF(data: ReportData): Readable {
     sectionTitle(doc, 'Coding Answers')
 
     for (const { idx, ia, rowColor } of codingAnswerQueue) {
-      pageCheck(doc, 100)
+      pageCheck(doc, 48)
 
       const blockY = doc.y
       const questionText = ia.prompt || ia.liveCodingProblem || 'Coding Question'
+      const qHeaderH = Math.max(28, doc.heightOfString(questionText, { width: cw(doc) - 120, lineGap: 1 }) + 14)
 
       // Question header
-      doc.rect(MARGIN, blockY, cw(doc), 28).fill(LIGHT).stroke(BORDER)
-      doc.rect(MARGIN, blockY, 4, 28).fill(rowColor)
+      doc.rect(MARGIN, blockY, cw(doc), qHeaderH).fill(LIGHT).stroke(BORDER)
+      doc.rect(MARGIN, blockY, 4, qHeaderH).fill(rowColor)
       pill(doc, MARGIN + 10, blockY + 7, 30, 14, `Q${idx + 1}`, rowColor)
       doc.fillColor(DARK).fontSize(9).font('Helvetica-Bold')
-         .text(questionText, MARGIN + 48, blockY + 9, { width: cw(doc) - 120, lineGap: 1 })
+         .text(questionText, MARGIN + 48, blockY + 9, { width: cw(doc) - 120, lineGap: 1, height: qHeaderH - 10 })
 
       // Test cases badge
       if (ia.testCasesTotal != null) {
@@ -436,25 +500,27 @@ export function generateCampusReportPDF(data: ReportData): Readable {
         pill(doc, pw(doc) - MARGIN - 80, blockY + 7, 76, 14, `TC: ${tcPassed}/${tcTotal} passed`, tcColor)
       }
 
-      doc.y = blockY + 36
+      doc.y = blockY + qHeaderH + 8
 
       // Candidate's code
       if (ia.codeSubmission) {
-        const code     = ia.codeSubmission
-        const codeLines = code.split('\n').slice(0, 30).join('\n')   // cap at 30 lines
-        const hasMore   = code.split('\n').length > 30
+        const code = ia.codeSubmission
 
         doc.fillColor(TEAL).fontSize(7.5).font('Helvetica-Bold').text('CANDIDATE SOLUTION', MARGIN, doc.y)
         doc.moveDown(0.3)
 
-        const codeY = doc.y
-        const codeH = Math.min(200, doc.heightOfString(codeLines, { width: cw(doc) - 20, lineGap: 2 }) + 20)
-
-        doc.rect(MARGIN, codeY, cw(doc), codeH).fill(BG_CODE).stroke('#334155')
-        doc.fillColor(CODE_FG).fontSize(7.5).font('Courier')
-           .text(codeLines + (hasMore ? '\n… (truncated)' : ''), MARGIN + 10, codeY + 10, { width: cw(doc) - 24, lineGap: 2 })
-
-        doc.y = codeY + codeH + 8
+        drawWrappedTextBox(doc, code, {
+          x: MARGIN,
+          width: cw(doc),
+          bg: BG_CODE,
+          stroke: '#334155',
+          fg: CODE_FG,
+          font: 'Courier',
+          fontSize: 7.5,
+          lineGap: 2,
+          padX: 10,
+          padY: 10,
+        })
       }
 
       // Text/explain answer
@@ -462,12 +528,19 @@ export function generateCampusReportPDF(data: ReportData): Readable {
       if (answerText && answerText.trim()) {
         doc.fillColor(TEAL).fontSize(7.5).font('Helvetica-Bold').text('EXPLANATION / TRANSCRIPT', MARGIN, doc.y)
         doc.moveDown(0.3)
-        const expY = doc.y
-        const expH = Math.min(80, doc.heightOfString(answerText, { width: cw(doc) - 24, lineGap: 1 }) + 16)
-        doc.rect(MARGIN, expY, cw(doc), expH).fill(LIGHT).stroke(BORDER)
-        doc.fillColor(GRAY).fontSize(8).font('Helvetica-Oblique')
-           .text(`"${answerText}"`, MARGIN + 10, expY + 8, { width: cw(doc) - 24, lineGap: 1, height: expH - 16, ellipsis: true })
-        doc.y = expY + expH + 6
+
+        drawWrappedTextBox(doc, `"${answerText}"`, {
+          x: MARGIN,
+          width: cw(doc),
+          bg: LIGHT,
+          stroke: BORDER,
+          fg: GRAY,
+          font: 'Helvetica-Oblique',
+          fontSize: 8,
+          lineGap: 1,
+          padX: 10,
+          padY: 8,
+        })
       }
 
       // AI evaluation
@@ -489,12 +562,12 @@ export function generateCampusReportPDF(data: ReportData): Readable {
       }
 
       hRule(doc)
-      doc.moveDown(0.8)
+      doc.moveDown(0.35)
     }
   }
 
   // ── PROCTORING VIOLATIONS ──────────────────────────────────
-  pageCheck(doc, 60)
+  pageCheck(doc, 40)
   sectionTitle(doc, 'Proctoring Violations')
 
   if (data.strikeLog.length === 0) {

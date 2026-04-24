@@ -5,9 +5,9 @@ import type { Readable } from 'stream'
 const ORANGE  = '#FB851E'      // Primary
 const NAVY    = '#FFFFFF'      // page / header fill (keep white)
 const TEAL    = '#23979C'      // Secondary
-const GREEN   = '#86FE90'      // Success
+const GREEN   = '#15803D'      // Success (darker for visibility)
 const RED     = '#FB371E'      // Danger / Alert
-const AMBER   = '#EDFC81'      // Warning / Accent (Yellow)
+const AMBER   = '#B45309'      // Warning / Accent (darker for visibility)
 const GRAY    = '#3A3A3A'      // Base / Surfaces
 const LGRAY   = '#EFEAE3'      // Cream — light text / surfaces
 const DARK    = '#3A3A3A'      // Base / Surfaces
@@ -59,7 +59,7 @@ function classifyRecommendation(fitPct: number, trustScore: number, hiringType?:
   const isCampus = (hiringType || '').toUpperCase() === 'CAMPUS'
 
   if (isCampus) {
-    if (fitPct >= 76 && trustScore >= 72) return { label: 'FAST-TRACK', color: WHITE, bg: GREEN }
+    if (fitPct >= 76 && trustScore >= 72) return { label: 'STRONG-HIRE', color: WHITE, bg: GREEN }
     if (fitPct >= 62 && trustScore >= 62) return { label: 'HIRE',       color: WHITE, bg: TEAL  }
     if (fitPct >= 50 && trustScore >= 52) return { label: 'WATCHLIST',  color: WHITE, bg: AMBER }
     return                                        { label: 'NO HIRE',    color: WHITE, bg: RED   }
