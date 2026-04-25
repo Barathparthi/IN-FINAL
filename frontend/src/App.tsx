@@ -78,6 +78,15 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', targetTheme)
   }, [user, theme])
 
+  // Inform the Electron main process of the current role so the exit shortcut
+  // can decide whether to show a confirmation dialog (CANDIDATE only).
+  useEffect(() => {
+    const api = (window as any).electronAPI
+    if (api?.setUserRole) {
+      api.setUserRole(user?.role ?? null)
+    }
+  }, [user])
+
   return (
     <Routes>
       <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
