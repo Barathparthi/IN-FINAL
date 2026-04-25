@@ -333,9 +333,12 @@ if [ -z "$JWT_REFRESH_SECRET_VALUE" ]; then
   JWT_REFRESH_SECRET_VALUE="$JWT_REFRESH_SECRET"
 fi
 
+JUDGE0_DB_PASSWORD=$(pwgen -s 32 1)
+
 cat <<EOF > .env
 POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="\${POSTGRES_PASSWORD}"
+POSTGRES_DB="indium_db"
 
 DATABASE_URL="\${BACKEND_DATABASE_URL}"
 JWT_SECRET="\${JWT_SECRET_VALUE}"
@@ -349,6 +352,12 @@ CLIENT_URL="${frontendUrlParam.valueAsString}"
 FRONTEND_URL="${frontendUrlParam.valueAsString}"
 BACKEND_URL="${backendUrlParam.valueAsString}"
 
+RATE_LIMIT_ENABLED=true
+AUTH_RATE_LIMIT_WINDOW_MS=900000
+AUTH_RATE_LIMIT_MAX=20
+API_RATE_LIMIT_WINDOW_MS=900000
+API_RATE_LIMIT_MAX=500
+
 OPENAI_API_KEY="\${OPENAI_API_KEY_VALUE}"
 OPENAI_BASE_URL="${openAiBaseUrlParam.valueAsString}"
 OPENAI_MODEL="${openAiModelParam.valueAsString}"
@@ -358,6 +367,10 @@ GROQ_API_KEY="${groqApiKeyParam.valueAsString}"
 
 JUDGE0_API_URL="${judge0ApiUrlParam.valueAsString}"
 JUDGE0_API_KEY=""
+JUDGE0_DB_USER="postgres"
+JUDGE0_DB_PASSWORD="\${JUDGE0_DB_PASSWORD}"
+JUDGE0_DB_NAME="judge0"
+JUDGE0_HOST_PORT="2358"
 JUDGE0_MEMORY_LIMIT_DEFAULT_KB="512000"
 JUDGE0_MEMORY_LIMIT_JS_KB="640000"
 JUDGE0_MEMORY_LIMIT_JAVA_KB="2097152"
@@ -379,6 +392,11 @@ SMTP_PASS="${smtpPassParam.valueAsString}"
 SMTP_FROM="${smtpFromParam.valueAsString}"
 
 REDIS_URL="${redisUrlParam.valueAsString}"
+
+BACKEND_IMAGE="indium-backend:1.0.0"
+FRONTEND_IMAGE="indium-frontend:1.0.0"
+BACKEND_HOST_PORT="4000"
+FRONTEND_HOST_PORT="8080"
 EOF
 
 cat <<'EOF' > init-db.sql
@@ -387,23 +405,43 @@ CREATE DATABASE judge0;
 EOF
 
 cat <<'EOF' > backend.Dockerfile
-FROM node:20-alpine
-
-RUN apk --no-cache add postgresql-client
-RUN apk add --no-cache openssl
-
+# Build stage
+FROM node:20-slim AS builder
 WORKDIR /app
 
+# Install OpenSSL (Debian already has libssl)
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
 COPY repo/backend/package*.json ./
 RUN npm ci
 
-COPY repo/backend ./
+# Copy source code and configs
+COPY repo/backend/tsconfig.json ./
+COPY repo/backend/swagger.js ./
+COPY repo/backend/src ./src
+COPY repo/backend/prisma ./prisma
+
+# Generate Prisma client and build TypeScript
 RUN npx prisma generate
 RUN npm run build
 
+# Runtime stage
+FROM node:20-slim
+WORKDIR /app
+
+# Install OpenSSL in runtime image as well
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+# Copy built artifacts and node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/swagger.js ./swagger.js
+
 EXPOSE 4000
-# Wait for postgres, push schema, and start the compiled server.
-CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && if [ -f dist/src/index.js ]; then node dist/src/index.js; else node dist/index.js; fi'
+CMD sh -c 'until pg_isready -h "postgres" -p "5432" -U "postgres"; do echo "Waiting for Postgres..."; sleep 2; done; npx prisma db push --accept-data-loss && node dist/index.js'
 EOF
 
 cat <<'EOF' > docker-compose.yml
@@ -411,93 +449,137 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:13
+    image: postgres:16-alpine
+    container_name: indium-postgres
+    restart: unless-stopped
     env_file: .env
     environment:
       POSTGRES_USER: \${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-    restart: always
+      POSTGRES_DB: \${POSTGRES_DB:-indium_db}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U \${POSTGRES_USER:-postgres} -d \${POSTGRES_DB:-indium_db}"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 8
+    networks:
+      - indium-net
 
   redis:
-    image: redis:6.0
-    restart: always
+    image: redis:7-alpine
+    container_name: indium-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks:
+      - indium-net
+
+  judge0-db:
+    image: postgres:16-alpine
+    container_name: indium-judge0-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: \${JUDGE0_DB_USER:-postgres}
+      POSTGRES_PASSWORD: \${JUDGE0_DB_PASSWORD:-postgres}
+      POSTGRES_DB: \${JUDGE0_DB_NAME:-judge0}
+    volumes:
+      - judge0_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \${JUDGE0_DB_USER:-postgres} -d \${JUDGE0_DB_NAME:-judge0}"]
       interval: 10s
       timeout: 5s
-      retries: 12
+      retries: 8
+    networks:
+      - indium-net
+
+  judge0-redis:
+    image: redis:7-alpine
+    container_name: indium-judge0-redis
+    restart: unless-stopped
+    networks:
+      - indium-net
 
   judge0-server:
     image: judge0/judge0:1.13.1
+    container_name: indium-judge0-server
+    restart: unless-stopped
+    privileged: true
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_started
     env_file: .env
     environment:
-      PORT: 2358
-      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: judge0
-      POSTGRES_USER: \${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-      REDIS_HOST: redis
+      RAILS_ENV: production
+      DATABASE_URL: postgresql://\${JUDGE0_DB_USER:-postgres}:\${JUDGE0_DB_PASSWORD:-postgres}@judge0-db:5432/\${JUDGE0_DB_NAME:-judge0}
+      REDIS_URL: redis://judge0-redis:6379/0
+      REDIS_HOST: judge0-redis
       REDIS_PORT: 6379
-      MEMORY_LIMIT: 524288
-      MAX_MEMORY_LIMIT: 2097152
+      REDIS_DB: 0
     ports:
-      - "2358:2358"
-    restart: always
-    privileged: true
-    depends_on:
-      - postgres
-      - redis
-
-  judge0-worker:
-    image: judge0/judge0:1.13.1
-    command: ["./scripts/workers"]
-    env_file: .env
-    environment:
-      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/judge0
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: judge0
-      POSTGRES_USER: \${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: \${POSTGRES_PASSWORD}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      MEMORY_LIMIT: 524288
-      MAX_MEMORY_LIMIT: 2097152
-    restart: always
-    privileged: true
-    depends_on:
-      - postgres
-      - redis
+      - "\${JUDGE0_HOST_PORT:-2358}:2358"
+    volumes:
+      - judge0_box:/box
+    networks:
+      - indium-net
 
   backend:
     build:
       context: .
       dockerfile: backend.Dockerfile
+    image: \${BACKEND_IMAGE:-indium-backend:1.0.0}
+    container_name: indium-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      judge0-server:
+        condition: service_started
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://postgres:\${POSTGRES_PASSWORD}@postgres:5432/indium_db
+      DATABASE_URL: postgresql://\${POSTGRES_USER:-postgres}:\${POSTGRES_PASSWORD}@postgres:5432/\${POSTGRES_DB:-indium_db}
+      REDIS_URL: \${REDIS_URL:-redis://redis:6379}
+      JUDGE0_API_URL: \${JUDGE0_API_URL:-http://judge0-server:2358}
     ports:
-      - "4000:4000"
-    restart: always
+      - "\${BACKEND_HOST_PORT:-4000}:4000"
+    networks:
+      - indium-net
+
+  frontend:
+    build:
+      context: ../repo/frontend
+      dockerfile: Dockerfile
+    image: \${FRONTEND_IMAGE:-indium-frontend:1.0.0}
+    container_name: indium-frontend
+    restart: unless-stopped
     depends_on:
-      - postgres
-      - judge0-server
+      - backend
+    ports:
+      - "\${FRONTEND_HOST_PORT:-8080}:80"
+    networks:
+      - indium-net
 
 volumes:
   postgres-data:
   redis-data:
+  judge0_db_data:
+  judge0_box:
+
+networks:
+  indium-net:
+    driver: bridge
 EOF
 
 cat <<'EOF' > /etc/nginx/sites-available/default

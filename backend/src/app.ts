@@ -2,12 +2,12 @@ import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import morgan from 'morgan'
 import compression from 'compression'
 import { apiReference } from '@scalar/express-api-reference'
 import { authLimiter, apiLimiter } from './middlewares/rateLimiter.middleware'
 import { errorHandler } from './middlewares/error.middleware'
 import { env } from './config/env'
+import { logger, httpLogger } from './lib/logger'
 
 import { authRouter }       from './modules/auth/auth.routes'
 import { adminRouter }      from './modules/admin/admin.routes'
@@ -39,9 +39,7 @@ app.use(cors({
 app.use(compression()) // Compress responses
 app.use(express.json({ limit: env.JSON_LIMIT }))
 app.use(express.urlencoded({ extended: true }))
-
-const logFormat = env.NODE_ENV === 'production' ? 'combined' : 'dev'
-app.use(morgan(logFormat))
+app.use(httpLogger)
 
 // Static files (resumes, proctoring snapshots, etc.)
 app.use('/uploads',   express.static(path.join(process.cwd(), 'uploads')))
@@ -51,6 +49,13 @@ app.get('/health', (_, res) => res.json({ status: 'ok', ts: new Date() }))
 
 app.get('/openapi.json', (_, res) => {
   res.sendFile(path.join(process.cwd(), 'openapi.json'))
+})
+
+app.post('/api/internal/logs', (req, res) => {
+  const { level, message, context, stack } = req.body
+  const logFn = (logger as any)[level] || logger.info
+  logFn({ frontend: true, context, stack }, message)
+  res.status(200).json({ ok: true })
 })
 
 const scalarDocsCsp = [
