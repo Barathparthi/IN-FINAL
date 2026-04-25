@@ -33,7 +33,7 @@ scrape_configs:
           stream: stream
       - regex:
           source: attrs
-          expression: '.*container_name=(?P<container>.+?),.*'
+          expression: 'container_name=(?P<container>[^,]+)'
       - labels:
           container: container
       - output:
