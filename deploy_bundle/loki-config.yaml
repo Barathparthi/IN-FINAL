@@ -13,7 +13,7 @@ ingester:
   chunk_idle_period: 5m
   chunk_retain_period: 30s
   wal:
-    dir: /loki/wal               # required for ingester
+    dir: /loki/wal
 
 schema_config:
   configs:
@@ -34,7 +34,7 @@ storage_config:
     directory: /loki/chunks
 
 compactor:
-  working_directory: /loki/compactor   # required
+  working_directory: /loki/compactor
 
 limits_config:
   enforce_metric_name: false

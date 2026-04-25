@@ -125,7 +125,7 @@ services:
     image: grafana/loki:2.9.7
     container_name: indium-loki
     restart: unless-stopped
-    user: root                                     # <-- fixes permission issues
+    user: root
     command: -config.file=/etc/loki/loki-config.yaml
     ports:
       - "3100:3100"
@@ -139,12 +139,13 @@ services:
     image: grafana/promtail:2.9.7
     container_name: indium-promtail
     restart: unless-stopped
+    user: root
     depends_on:
       - loki
     volumes:
       - ./promtail-config.yml:/etc/promtail/promtail-config.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro   # container logs
-      - /var/run/docker.sock:/var/run/docker.sock:ro               # container discovery
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command: -config.file=/etc/promtail/promtail-config.yml
     networks:
       - indium-net
