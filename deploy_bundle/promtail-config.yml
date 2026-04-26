@@ -9,29 +9,17 @@ clients:
   - url: http://loki:3100/loki/api/v1/push
 
 scrape_configs:
-  - job_name: docker
-    docker_sd:
-      host: unix:///var/run/docker.sock
-      refresh_interval: 10s
-    relabel_configs:
-      # Extract container name from Docker metadata
-      - source_labels: ['__meta_docker_container_name']
-        regex: '/(.*)'
-        target_label: 'container'
-      # Keep container ID for reference
-      - source_labels: ['__meta_docker_container_id']
-        target_label: 'container_id'
-      # Set the log file path using the container ID
-      - replacement: '/var/lib/docker/containers/${__meta_docker_container_id}/${__meta_docker_container_id}-json.log'
-        target_label: '__path__'
-      # Preserve stream (stdout/stderr)
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: 'stream'
+  - job_name: backend
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: backend
+          container: indium-backend
+          __path__: /var/lib/docker/containers/0e042f157ac68ab4804eb44f124b644f5cfdbd245916953572ebd8ba97449bb5/0e042f157ac68ab4804eb44f124b644f5cfdbd245916953572ebd8ba97449bb5-json.log
     pipeline_stages:
       - json:
           expressions:
             log: log
-            stream: stream
       - json:
           source: log
           expressions:
@@ -41,6 +29,5 @@ scrape_configs:
             status: status_code
       - labels:
           level: level
-          stream: stream
       - output:
           source: msg
