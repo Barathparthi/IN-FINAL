@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Indium Postgres",
+      "Group": "Indium",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "indium_db",
+      "Username": "YOUR_POSTGRES_USER",
+      "Password": "YOUR_POSTGRES_PASSWORD",
+      "SSLMode": "prefer"
+    }
+  }
+}

@@ -22,7 +22,7 @@ export const remoteLogger = {
 
 async function send(level: LogLevel, message: string, context?: any, stack?: string) {
   try {
-    await fetch(`${API_URL}/api/internal/logs`, {
+    await fetch(`${API_URL}/internal/logs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ level, message, context, stack } as LogPayload),

@@ -167,6 +167,25 @@ services:
     networks:
       - indium-net
 
+  # ========== PGADMIN ==========
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: indium-pgadmin
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@indium.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json:ro
+    ports:
+      - "5050:80"
+    networks:
+      - indium-net
+
 volumes:
   postgres_data:
   redis_data:
@@ -174,6 +193,7 @@ volumes:
   judge0_box:
   loki_data:
   grafana_data:
+  pgadmin_data:
 
 networks:
   indium-net:
