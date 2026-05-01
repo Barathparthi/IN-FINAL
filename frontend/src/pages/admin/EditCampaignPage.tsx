@@ -248,7 +248,7 @@ export default function EditCampaignPage() {
         {step === 2 && <Step3RoundConfig {...stepProps} />}
         {step === 3 && <Step4InterviewConfig {...stepProps} hasInterviewRound={hasInterviewRound} />}
         {step === 4 && <Step5Proctoring {...stepProps} />}
-        {step === 5 && <Step6Review {...stepProps} onSubmit={() => submit()} isSubmitting={isPending} />}
+        {step === 5 && <Step6Review {...stepProps} onSubmit={() => submit()} isSubmitting={isPending} onBack={() => setStep(s => s - 1)} />}
       </div>
 
       {/* Navigation */}
