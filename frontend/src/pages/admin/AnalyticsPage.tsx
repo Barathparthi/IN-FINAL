@@ -465,10 +465,10 @@ export default function AnalyticsPage() {
   ]
 
   const tabs = [
-    { key: 'overview',    label: 'Overview'    },
-    { key: 'rounds',      label: 'Round Analysis' },
-    { key: 'proctoring',  label: 'Proctoring'  },
-    { key: 'comparison',  label: 'Campaigns'   },
+    { key: 'overview',    label: <strong style={{ fontWeight: 900 }}>Overview</strong>    },
+    { key: 'rounds',      label: <strong style={{ fontWeight: 900 }}>Round Analysis</strong> },
+    { key: 'proctoring',  label: <strong style={{ fontWeight: 900 }}>Proctoring</strong>  },
+    { key: 'comparison',  label: <strong style={{ fontWeight: 900 }}>Campaigns</strong>   },
   ]
 
   return (
