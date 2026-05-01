@@ -187,19 +187,42 @@ export async function getRecruiterById(recruiterId: string) {
   })
 }
 
-export async function updateRecruiter(recruiterId: string, data: { department?: string; isActive?: boolean }) {
-  if (data.isActive !== undefined) {
+export async function updateRecruiter(recruiterId: string, data: { firstName?: string; lastName?: string; department?: string; isActive?: boolean; campaignIds?: string[] }) {
+  const updateData: any = {}
+  if (data.firstName !== undefined) updateData.firstName = data.firstName
+  if (data.lastName !== undefined) updateData.lastName = data.lastName
+  if (data.isActive !== undefined) updateData.isActive = data.isActive
+  
+  if (Object.keys(updateData).length > 0) {
     await prisma.user.update({
       where: { id: recruiterId },
-      data: { isActive: data.isActive }
+      data: updateData
     })
   }
 
-  if (data.department !== undefined) {
-    await prisma.recruiterProfile.update({
-      where: { userId: recruiterId },
-      data: { department: data.department }
-    })
+  const profile = await prisma.recruiterProfile.findUnique({ where: { userId: recruiterId } })
+  
+  if (profile) {
+    if (data.department !== undefined) {
+      await prisma.recruiterProfile.update({
+        where: { id: profile.id },
+        data: { department: data.department }
+      })
+    }
+    
+    if (data.campaignIds !== undefined) {
+      await prisma.campaignRecruiter.deleteMany({
+        where: { recruiterId: profile.id }
+      })
+      if (data.campaignIds.length > 0) {
+        await prisma.campaignRecruiter.createMany({
+          data: data.campaignIds.map(campaignId => ({
+            recruiterId: profile.id,
+            campaignId
+          }))
+        })
+      }
+    }
   }
 
   return getRecruiterById(recruiterId)

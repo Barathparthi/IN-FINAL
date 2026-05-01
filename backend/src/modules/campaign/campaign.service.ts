@@ -129,7 +129,7 @@ export async function updateCampaign(id: string, input: z.infer<typeof CreateCam
 export async function getCampaigns(adminUserId: string) {
   const admin = await prisma.adminProfile.findUniqueOrThrow({ where: { userId: adminUserId } })
   return prisma.campaign.findMany({
-    where: { adminId: admin.id, NOT: { status: 'ARCHIVED' } },
+    where: { adminId: admin.id },   // include ALL statuses including ARCHIVED
     include: {
       _count: { select: { candidates: true } },
       rounds: { orderBy: { order: 'asc' } },

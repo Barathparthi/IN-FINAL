@@ -369,7 +369,7 @@ export default function QuestionPoolPage() {
                   className="btn btn-success btn-sm"
                   style={{ flex:1, fontSize:'0.75rem', padding:'5px 8px', gap:4 }}
                   onClick={() => bulkMutation.mutate({ poolId: s.poolId, approve: true })}
-                  disabled={bulkMutation.isPending}
+                  disabled={bulkMutation.isPending || s.approvedCount === s.totalQuestions}
                 >
                   <ThumbsUp size={12} /> Approve All
                 </button>
@@ -377,7 +377,7 @@ export default function QuestionPoolPage() {
                   className="btn btn-outline btn-sm"
                   style={{ flex:1, fontSize:'0.75rem', padding:'5px 8px', gap:4, color:'var(--text-muted)' }}
                   onClick={() => bulkMutation.mutate({ poolId: s.poolId, approve: false })}
-                  disabled={bulkMutation.isPending}
+                  disabled={bulkMutation.isPending || s.approvedCount === 0}
                 >
                   <ThumbsDown size={12} /> Reject All
                 </button>

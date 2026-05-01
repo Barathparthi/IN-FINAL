@@ -81,7 +81,7 @@ export default function DashboardPage() {
     if (!stats?.funnel) return []
     const f = stats.funnel
     return [
-      { name: 'Invited', value: f.invited, fill: '#64748b' },
+      { name: 'Locked & Invited', value: f.invited, fill: '#64748b' },
       { name: 'In Progress', value: f.inProgress, fill: '#0fbdb8' },
       { name: 'Completed', value: f.completed, fill: '#fb851e' },
       { name: 'Shortlisted', value: f.shortlisted, fill: '#23979c' },
@@ -209,7 +209,7 @@ export default function DashboardPage() {
                       isAnimationActive
                       onClick={(e: any) => {
                         const statusMap: Record<string, string> = {
-                          'Invited': 'INVITED,LOCKED',
+                          'Locked & Invited': 'INVITED,LOCKED',
                           'In Progress': 'IN_PROGRESS,ONBOARDING,READY',
                           'Completed': 'COMPLETED',
                           'Shortlisted': 'SHORTLISTED'

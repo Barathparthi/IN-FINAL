@@ -8,7 +8,8 @@ import { authApi } from '../services/api.services'
 import toast from 'react-hot-toast'
 import {
   LayoutDashboard, Briefcase, Users, LogOut,
-  Menu, X, Settings, Shield, Bell, BarChart3, MonitorPlay, BarChart2, GraduationCap
+  Menu, X, Settings, Shield, Bell, BarChart3, MonitorPlay, BarChart2, GraduationCap,
+  Layers
 } from 'lucide-react'
 
 const navSections = [
@@ -31,6 +32,7 @@ const navSections = [
     items: [
       { to: '/admin/campus-hiring', icon: GraduationCap, label: 'Campus Hiring' },
       { to: '/admin/lateral-hiring', icon: Briefcase, label: 'Lateral Hiring' },
+      { to: '/admin/campaigns', icon: Layers, label: 'All Campaigns' },
       { to: '/admin/recruiters', icon: Users, label: 'Recruiters' },
     ],
   },

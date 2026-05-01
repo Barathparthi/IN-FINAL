@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { adminApi, campaignApi } from '../../services/api.services'
-import { Plus, X, Copy, Check, Users, Trash2, Pencil, Eye } from 'lucide-react'
+import { Plus, X, Copy, Check, Users, Trash2, Pencil, Eye, Search } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -312,6 +312,7 @@ export default function RecruitersPage() {
   const navigate = useNavigate()
   const [showModal, setShowModal] = useState(false)
   const [editingRecruiter, setEditingRecruiter] = useState<any>(null)
+  const [search, setSearch] = useState('')
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => adminApi.deleteRecruiter(id),
@@ -336,16 +337,34 @@ export default function RecruitersPage() {
 
   return (
     <div className="fade-in">
-      <div className="section-header">
+      <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ marginBottom: '4px' }}>
             <span style={{ color: 'var(--orange)' }}>Recruiter</span> Management
           </h1>
           <p className="section-subtitle">{recruiters.length} recruiter{recruiters.length !== 1 ? 's' : ''} on the platform</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Add Recruiter
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
+          <div className="search-bar" style={{ flex: '1', minWidth: '200px', maxWidth: '320px', position: 'relative' }}>
+            <Search className="search-bar-icon" size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search recruiters..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ paddingLeft: '36px', width: '100%' }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            <Plus size={16} /> Add Recruiter
+          </button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -361,7 +380,10 @@ export default function RecruitersPage() {
         </div>
       ) : (
         <div className="grid-2" style={{ gap: '14px' }}>
-          {recruiters.map((r: RecruiterResult) => {
+          {recruiters.filter((r: RecruiterResult) => {
+            const term = search.toLowerCase()
+            return `${r.firstName} ${r.lastName}`.toLowerCase().includes(term) || r.email.toLowerCase().includes(term)
+          }).map((r: RecruiterResult) => {
             const assignments = r.recruiterProfile?.assignments || []
             return (
               <div key={r.id} className="card" style={{ padding: '18px' }}>

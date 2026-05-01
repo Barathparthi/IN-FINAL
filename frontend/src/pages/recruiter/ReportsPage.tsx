@@ -26,7 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function ReportsPage() {
   const [selectedCampaignId, setSelectedCampaignId] = useState('')
-  const [hiringTypeFilter, setHiringTypeFilter] = useState<'CAMPUS' | 'LATERAL' | null>(null)
+  const [hiringTypeFilter, setHiringTypeFilter] = useState<'CAMPUS' | 'LATERAL' | 'ALL' | null>(null)
   const [exporting, setExporting] = useState<'csv' | 'xlsx' | 'pdf' | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<string[]>([])
@@ -43,6 +43,7 @@ export default function ReportsPage() {
   // Filter campaigns by selected type
   const filteredCampaigns = (campaigns as any[]).filter((c: any) => {
     if (!hiringTypeFilter) return true
+    if (hiringTypeFilter === 'ALL') return true
     const type = c.campaign?.hiringType || 'LATERAL'
     return hiringTypeFilter === 'CAMPUS' ? type === 'CAMPUS' : type !== 'CAMPUS'
   })
@@ -305,7 +306,18 @@ export default function ReportsPage() {
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Which type of campaign report do you want to generate?
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxWidth: '520px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', maxWidth: '780px' }}>
+            <button
+              className="card"
+              onClick={() => setHiringTypeFilter('LATERAL')}
+              style={{ padding: '28px 20px', textAlign: 'center', cursor: 'pointer', border: '2px solid var(--border)', transition: 'all 0.2s', background: 'var(--bg-elevated)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none' }}
+            >
+              <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>💼</div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '6px' }}>Lateral Campaign</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>Experienced hires, coding & interview reports</div>
+            </button>
             <button
               className="card"
               onClick={() => setHiringTypeFilter('CAMPUS')}
@@ -319,14 +331,14 @@ export default function ReportsPage() {
             </button>
             <button
               className="card"
-              onClick={() => setHiringTypeFilter('LATERAL')}
+              onClick={() => setHiringTypeFilter('ALL')}
               style={{ padding: '28px 20px', textAlign: 'center', cursor: 'pointer', border: '2px solid var(--border)', transition: 'all 0.2s', background: 'var(--bg-elevated)' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--orange)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none' }}
             >
-              <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>💼</div>
-              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '6px' }}>Lateral Campaign</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>Experienced hires, coding & interview reports</div>
+              <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>🌐</div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '6px' }}>All Campaigns</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>Reports across all hiring types</div>
             </button>
           </div>
         </div>
@@ -344,7 +356,7 @@ export default function ReportsPage() {
               ← Back
             </button>
             <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--cream)' }}>
-              {hiringTypeFilter === 'CAMPUS' ? '🎓 Campus' : '💼 Lateral'} Campaign Reports
+              {hiringTypeFilter === 'CAMPUS' ? '🎓 Campus' : hiringTypeFilter === 'LATERAL' ? '💼 Lateral' : '🌐 All'} Campaign Reports
             </span>
           </div>
           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>

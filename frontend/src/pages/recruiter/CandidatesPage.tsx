@@ -453,8 +453,8 @@ export default function CandidatesPage() {
   const initialStatus = searchParams.get('status') || 'ALL'
 
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(initialCampaign)
-  const [hiringTypeFilter, setHiringTypeFilter] = useState<'CAMPUS' | 'LATERAL' | null>(
-    initialCampaign && initialCampaign !== 'ALL' ? 'LATERAL' : null
+  const [hiringTypeFilter, setHiringTypeFilter] = useState<'CAMPUS' | 'LATERAL' | 'ALL' | null>(
+    initialCampaign === 'ALL' ? 'ALL' : initialCampaign ? 'LATERAL' : null
   )
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
@@ -473,10 +473,11 @@ export default function CandidatesPage() {
 
   const campusCampaigns = (campaigns as any[]).filter(c => c.campaign?.hiringType === 'CAMPUS')
   const lateralCampaigns = (campaigns as any[]).filter(c => c.campaign?.hiringType !== 'CAMPUS')
-  const filteredByType = hiringTypeFilter === 'CAMPUS' ? campusCampaigns : hiringTypeFilter === 'LATERAL' ? lateralCampaigns : []
+  const filteredByType = hiringTypeFilter === 'CAMPUS' ? campusCampaigns : hiringTypeFilter === 'LATERAL' ? lateralCampaigns : campaigns
 
   useEffect(() => {
     if (!hiringTypeFilter) { setSelectedCampaignId(''); return }
+    if (hiringTypeFilter === 'ALL') { setSelectedCampaignId('ALL'); return }
     if (filteredByType.length > 0) setSelectedCampaignId(filteredByType[0].campaignId)
     else setSelectedCampaignId('')
   }, [hiringTypeFilter, campaigns.length])
@@ -651,7 +652,7 @@ export default function CandidatesPage() {
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
             Which type of campaign do you want to manage candidates for?
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', maxWidth: '520px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', maxWidth: '780px' }}>
             <button
               className="card"
               onClick={() => setHiringTypeFilter('LATERAL')}
@@ -674,6 +675,17 @@ export default function CandidatesPage() {
               <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '6px' }}>Campus Hiring</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{campusCampaigns.length} campaign{campusCampaigns.length !== 1 ? 's' : ''}</div>
             </button>
+            <button
+              className="card"
+              onClick={() => setHiringTypeFilter('ALL')}
+              style={{ padding: '28px 20px', textAlign: 'center', cursor: 'pointer', border: '2px solid var(--border)', transition: 'all 0.2s', background: 'var(--bg-elevated)' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none' }}
+            >
+              <div style={{ fontSize: '2.2rem', marginBottom: '12px' }}>🌐</div>
+              <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--cream)', marginBottom: '6px' }}>All Hiring</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{campaigns.length} total campaign{campaigns.length !== 1 ? 's' : ''}</div>
+            </button>
           </div>
         </div>
       )}
@@ -690,14 +702,15 @@ export default function CandidatesPage() {
             >
               ← Back
             </button>
-            <span style={{ fontSize: '0.88rem', fontWeight: 600, color: hiringTypeFilter === 'CAMPUS' ? 'var(--teal)' : 'var(--orange)' }}>
-              {hiringTypeFilter === 'CAMPUS' ? '🎓 Campus' : '💼 Lateral'} Hiring
+            <span style={{ fontSize: '0.88rem', fontWeight: 600, color: hiringTypeFilter === 'CAMPUS' ? 'var(--teal)' : hiringTypeFilter === 'LATERAL' ? 'var(--orange)' : 'var(--cream)' }}>
+              {hiringTypeFilter === 'CAMPUS' ? '🎓 Campus' : hiringTypeFilter === 'LATERAL' ? '💼 Lateral' : '🌐 All'} Hiring
             </span>
             <div style={{ flex: '1', minWidth: '240px', position: 'relative' }}>
               <select className="form-select" value={selectedCampaignId}
                 onChange={e => setSelectedCampaignId(e.target.value)}
                 style={{ fontWeight: 600 }} disabled={isLoadingCampaigns}>
-                {filteredByType.length === 0 && <option value="">No {hiringTypeFilter.toLowerCase()} campaigns assigned</option>}
+                {hiringTypeFilter === 'ALL' && <option value="ALL">All Campaigns</option>}
+                {filteredByType.length === 0 && hiringTypeFilter !== 'ALL' && <option value="">No {hiringTypeFilter?.toLowerCase()} campaigns assigned</option>}
                 {filteredByType.map((c: any) => (
                   <option key={c.campaignId} value={c.campaignId}>
                     {c.campaign.name} — {c.campaign.role}
@@ -720,6 +733,8 @@ export default function CandidatesPage() {
             <div style={{ flex: '1', minWidth: '160px', position: 'relative' }}>
               <select className="form-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                 <option value="ALL">All Statuses</option>
+                <option value="INVITED,LOCKED">Invited & Locked</option>
+                <option value="IN_PROGRESS,ONBOARDING,READY">Live / In Progress</option>
                 {Object.keys(STATUS_UI).map(s => (
                   <option key={s} value={s}>{STATUS_UI[s].label} {statusCounts[s] ? `(${statusCounts[s]})` : ''}</option>
                 ))}

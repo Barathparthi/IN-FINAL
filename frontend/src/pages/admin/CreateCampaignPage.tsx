@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { campaignApi } from '../../services/api.services'
 import toast from 'react-hot-toast'
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Save, Trash2 } from 'lucide-react'
 import Step1Meta from '../../components/campaign-wizard/Step1Meta'
 import Step2Pipeline from '../../components/campaign-wizard/Step2Pipeline'
 import Step3RoundConfig from '../../components/campaign-wizard/Step3RoundConfig'
@@ -98,23 +98,60 @@ const defaultForm: CampaignFormData = {
   followUpEnabled: true,
 }
 
+function getDraftKey(hiringType: 'CAMPUS' | 'LATERAL') {
+  return `campaign_draft_${hiringType}`
+}
+
+function readDraft(key: string): { form: CampaignFormData; step: number } | null {
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
 export default function CreateCampaignPage() {
-  const [step, setStep] = useState(0)
-  const [form, setForm] = useState<CampaignFormData>(defaultForm)
   const navigate = useNavigate()
   const location = useLocation()
   const qc = useQueryClient()
 
-  // Detect hiring type from URL path
+  // Detect hiring type from URL path — computed FIRST before any hooks that depend on it
   const hiringType: 'CAMPUS' | 'LATERAL' = location.pathname.includes('campus-hiring') ? 'CAMPUS' : 'LATERAL'
   const backPath = hiringType === 'CAMPUS' ? '/admin/campus-hiring' : '/admin/lateral-hiring'
+
+  // Draft key is stable per hiringType — read once outside useState initialisers
+  const draftKey = getDraftKey(hiringType)
+  const initialDraft = useRef(readDraft(draftKey)).current   // read once on first render
+
+  const [step, setStep] = useState<number>(initialDraft ? initialDraft.step : 0)
+  const [form, setForm] = useState<CampaignFormData>(initialDraft ? initialDraft.form : defaultForm)
+  const [hasDraft, setHasDraft] = useState<boolean>(!!initialDraft)
+
+  // Auto-save draft whenever form or step changes (only if form has content)
+  const saveDraft = useCallback((f: CampaignFormData, s: number, key: string) => {
+    localStorage.setItem(key, JSON.stringify({ form: f, step: s }))
+    setHasDraft(true)
+  }, [])
+
+  useEffect(() => {
+    if (form.name || form.rounds.length > 0) {
+      saveDraft(form, step, draftKey)
+    }
+  }, [form, step, draftKey, saveDraft])
+
+  const discardDraft = () => {
+    localStorage.removeItem(draftKey)
+    setHasDraft(false)
+    setForm(defaultForm)
+    setStep(0)
+    toast('Draft discarded — starting fresh', { icon: '🗑️' })
+  }
 
   const update = (patch: Partial<CampaignFormData>) =>
     setForm(prev => ({ ...prev, ...patch }))
 
-  const hasInterviewRound = form.rounds.some(
-    r => r.roundType === 'INTERVIEW'
-  )
+  const hasInterviewRound = form.rounds.some(r => r.roundType === 'INTERVIEW')
 
   const { mutate: submit, isPending } = useMutation({
     mutationFn: () => {
@@ -162,7 +199,6 @@ export default function CreateCampaignPage() {
               mapped.difficultyHard    = r.difficultyHard;
             } else if (r.roundType === 'INTERVIEW') {
               mapped.questionCount     = r.totalQuestions;
-              // Use round-specific settings if present, otherwise fallback to global form settings
               mapped.interviewMode     = r.interviewMode || form.interviewMode || 'TEXT';
               mapped.depth             = r.depth || form.interviewDepth || 'DEEP';
               mapped.followUpEnabled   = r.followUpEnabled ?? form.followUpEnabled ?? true;
@@ -177,6 +213,8 @@ export default function CreateCampaignPage() {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['campaigns'] })
+      localStorage.removeItem(draftKey)
+      setHasDraft(false)
       toast.success('Campaign created! Generating question pool...')
       navigate(`/admin/campaigns/${data.id}`)
     },
@@ -209,10 +247,35 @@ export default function CreateCampaignPage() {
     <div className="fade-in" style={{ maxWidth: '820px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <button className="btn btn-ghost btn-sm" onClick={() => navigate(backPath)}
-          style={{ marginBottom: '12px' }}>
-          <ChevronLeft size={15} /> Back to {hiringType === 'CAMPUS' ? 'Campus' : 'Lateral'} Hiring
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+          <button className="btn btn-ghost btn-sm" onClick={() => navigate(backPath)}>
+            <ChevronLeft size={15} /> Back to {hiringType === 'CAMPUS' ? 'Campus' : 'Lateral'} Hiring
+          </button>
+          {/* Draft indicator — always shown when draft exists */}
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            {hasDraft && (
+              <>
+                <span style={{
+                  fontSize: '0.73rem', color: 'var(--green-dark)',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  background: 'rgba(134,254,144,0.1)',
+                  padding: '3px 8px', borderRadius: '20px',
+                  border: '1px solid rgba(134,254,144,0.25)',
+                }}>
+                  <Save size={11} /> Draft auto-saved
+                </span>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ color: 'var(--red)', fontSize: '0.73rem' }}
+                  onClick={discardDraft}
+                  title="Discard draft and start fresh"
+                >
+                  <Trash2 size={12} /> Discard Draft
+                </button>
+              </>
+            )}
+          </div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
           <h1 style={{ fontSize: '1.6rem' }}>Create {hiringType === 'CAMPUS' ? 'Campus' : 'Lateral'} Campaign</h1>
           <span className={`badge ${hiringType === 'CAMPUS' ? 'badge-primary' : 'badge-teal'}`} style={{ fontSize: '0.7rem' }}>
@@ -249,12 +312,12 @@ export default function CreateCampaignPage() {
         {step === 0 && <Step1Meta {...stepProps} />}
         {step === 1 && <Step2Pipeline {...stepProps} hiringType={hiringType} />}
         {step === 2 && <Step3RoundConfig {...stepProps} />}
-        {step === 3 && <Step4InterviewConfig {...stepProps} hasInterviewRound={hasInterviewRound} />}
+        {step === 3 && <Step4InterviewConfig {...stepProps} hasInterviewRound={hasInterviewRound} hiringType={hiringType} />}
         {step === 4 && <Step5Proctoring {...stepProps} />}
-        {step === 5 && <Step6Review {...stepProps} onSubmit={() => submit()} isSubmitting={isPending} />}
+        {step === 5 && <Step6Review {...stepProps} onBack={() => setStep(s => s - 1)} onSubmit={() => submit()} isSubmitting={isPending} />}
       </div>
 
-      {/* Navigation */}
+      {/* Navigation — shown on steps 0-4 */}
       {step < 5 && (
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
           <button className="btn btn-secondary" onClick={() => setStep(s => s - 1)} disabled={step === 0}>

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { campaignApi } from '../../services/api.services'
-import { Plus, Search, Eye, Trash2, Pause, Play, Filter, Pencil, Archive } from 'lucide-react'
+import { Plus, Search, Eye, Trash2, Pause, Play, Filter, Pencil, Archive, X } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -74,15 +74,20 @@ export default function CampaignsPage() {
 
       {/* Search + Filter Bar */}
       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', alignItems: 'center' }}>
-        <div className="search-bar" style={{ flex: '1', minWidth: '200px', maxWidth: '320px' }}>
-          <Search className="search-bar-icon" size={16} />
+        <div className="search-bar" style={{ flex: '1', minWidth: '200px', maxWidth: '320px', position: 'relative' }}>
+          <Search className="search-bar-icon" size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             className="form-input"
             placeholder="Search campaigns or roles..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            style={{ paddingLeft: '38px' }}
+            style={{ paddingLeft: '38px', width: '100%' }}
           />
+          {search && (
+            <button onClick={() => setSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              <X size={14} />
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>

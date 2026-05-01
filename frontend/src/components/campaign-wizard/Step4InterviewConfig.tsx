@@ -1,13 +1,92 @@
 import type { CampaignFormData } from '../../pages/admin/CreateCampaignPage'
-import { Mic } from 'lucide-react'
+import { Mic, CheckCircle2, Clock, Percent } from 'lucide-react'
 
 interface Props {
   form: CampaignFormData
   update: (patch: Partial<CampaignFormData>) => void
   hasInterviewRound: boolean
+  hiringType?: 'CAMPUS' | 'LATERAL'
 }
 
-export default function Step4InterviewConfig({ form, update, hasInterviewRound }: Props) {
+export default function Step4InterviewConfig({ form, update, hasInterviewRound, hiringType }: Props) {
+  // For campus campaigns, show a pipeline summary (MCQ + Coding)
+  // since INTERVIEW rounds are not part of the campus pipeline
+  if (hiringType === 'CAMPUS') {
+    const TYPE_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️' }
+    return (
+      <div>
+        <div style={{ marginBottom: '22px' }}>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <CheckCircle2 size={18} style={{ color: 'var(--green-dark)' }} />
+            Interview Stage — Campus Pipeline
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+            Campus hiring uses MCQ and Coding rounds only. The rounds you configured in the Pipeline Builder are reflected below.
+          </p>
+        </div>
+
+        {form.rounds.length === 0 ? (
+          <div style={{
+            background: 'var(--yellow-soft)',
+            border: '1px solid rgba(237,252,129,0.3)',
+            borderRadius: 'var(--radius-md)',
+            padding: '18px',
+            color: '#a88f00', fontSize: '0.875rem',
+          }}>
+            ⚠️ <strong>No rounds configured yet.</strong> Go back to Pipeline Builder (Step 2) and add MCQ or Coding rounds.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {form.rounds.map((r, i) => (
+              <div key={r.id || `campus-round-${i}`} style={{
+                background: 'var(--bg-elevated)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '14px 18px',
+                display: 'flex', alignItems: 'center', gap: '14px',
+              }}>
+                <span style={{ fontSize: '1.4rem' }}>{TYPE_EMOJI[r.roundType] || '🔹'}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--cream)' }}>
+                    Round {r.order} — <span className={`round-badge ${r.roundType}`}>{r.roundType}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '14px', marginTop: '6px', fontSize: '0.78rem', color: 'var(--text-secondary)', flexWrap: 'wrap' }}>
+                    {r.timeLimitMinutes && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={12} /> {r.timeLimitMinutes} min
+                      </span>
+                    )}
+                    {r.passMarkPercent && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Percent size={12} /> Pass: {r.passMarkPercent}%
+                      </span>
+                    )}
+                    {r.totalQuestions && (
+                      <span>📋 {r.roundType === 'CODING' ? 'Problems' : 'Questions'}: {r.totalQuestions}</span>
+                    )}
+                    {r.questionMode && (
+                      <span>🎯 Mode: {r.questionMode}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(99,120,255,0.07) 0%, rgba(35,151,156,0.05) 100%)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '4px',
+            }}>
+              ✅ <strong style={{ color: 'var(--text-primary)' }}>{form.rounds.length}</strong> round{form.rounds.length !== 1 ? 's' : ''} confirmed from Pipeline Builder. No interview configuration needed for campus hiring.
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Lateral hiring: full interview configuration
   return (
     <div>
       <div style={{ marginBottom: '22px' }}>

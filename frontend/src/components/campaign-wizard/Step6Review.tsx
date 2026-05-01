@@ -5,12 +5,13 @@ interface Props {
   form: CampaignFormData
   update: (patch: Partial<CampaignFormData>) => void
   onSubmit: () => void
+  onBack: () => void
   isSubmitting: boolean
 }
 
 const TYPE_EMOJI: Record<string, string> = { MCQ: '📝', CODING: '💻', INTERVIEW: '🎙️' }
 
-export default function Step6Review({ form, onSubmit, isSubmitting }: Props) {
+export default function Step6Review({ form, onSubmit, onBack, isSubmitting }: Props) {
   const SectionRow = ({ label, value }: { label: string; value: string | number | undefined | null }) => (
     <div style={{
       display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
@@ -132,19 +133,29 @@ export default function Step6Review({ form, onSubmit, isSubmitting }: Props) {
           </div>
         </div>
 
-        {/* Submit */}
-        <button
-          className="btn btn-primary btn-lg"
-          onClick={onSubmit}
-          disabled={isSubmitting}
-          style={{ width: '100%', justifyContent: 'center', marginTop: '4px' }}
-        >
-          {isSubmitting ? (
-            <><div className="spinner spinner-sm" />Creating Campaign...</>
-          ) : (
-            <><Zap size={18} />Create Campaign & Generate Questions</>
-          )}
-        </button>
+        {/* Submit & Back */}
+        <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+          <button
+            className="btn btn-secondary btn-lg"
+            onClick={onBack}
+            disabled={isSubmitting}
+            style={{ width: '30%', justifyContent: 'center' }}
+          >
+            Back
+          </button>
+          <button
+            className="btn btn-primary btn-lg"
+            onClick={onSubmit}
+            disabled={isSubmitting}
+            style={{ width: '70%', justifyContent: 'center' }}
+          >
+            {isSubmitting ? (
+              <><div className="spinner spinner-sm" />Creating Campaign...</>
+            ) : (
+              <><Zap size={18} />Create Campaign & Generate Questions</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )
